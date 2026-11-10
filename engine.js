@@ -917,9 +917,12 @@ function analyse(dictee, biblio, opts) {
   { const Nn = "(\\d+(?:,\\d+)?)";
     body = body.replace(new RegExp("(?:(?:avec\\s+)?(?:une\\s+|la\\s+)?surface\\s+(?:au\\s+sol\\s+)?(?:de\\s+|d'environ\\s+)?)" + Nn + "\\s*m²(?:\\s+au\\s+sol)?", "gi"), (m, a) => ` ⟦sol:${nb(a)}⟧ `)
                .replace(new RegExp(Nn + "\\s*m²\\s+(?:au\\s+sol|de\\s+surface(?:\\s+au\\s+sol)?)" + NA, "gi"), (m, a) => ` ⟦sol:${nb(a)}⟧ `)
-               .replace(new RegExp("(?:(?:et\\s+|avec\\s+)?(?:une\\s+|la\\s+)?)?hauteur\\s+(?:sous\\s+plafond\\s+)?(?:de\\s+|d'environ\\s+)?" + Nn + "\\s*m(?![²³l\\wà-ÿ])", "gi"), (m, a) => ` ⟦haut:${nb(a)}⟧ `)
+               .replace(new RegExp("(?:(?:et\\s+|avec\\s+)?(?:une\\s+|la\\s+)?)?hauteur\\s+(?:sous\\s+plafond\\s+)?(?:de\\s+|d'environ\\s+|à\\s+)?" + Nn + "(?!\\s*(?:m²|m³|ml|m2|€))\\s*m?(?![²³l\\wà-ÿ\\d])", "gi"), (m, a) => ` ⟦haut:${nb(a)}⟧ `)
                .replace(new RegExp(Nn + "\\s*m\\s+(?:de\\s+)?(?:hauteur|haut)(?:\\s+sous\\s+plafond)?" + NA, "gi"), (m, a) => ` ⟦haut:${nb(a)}⟧ `)
-               .replace(new RegExp("(?:sous\\s+plafond|hsp)\\s+(?:de\\s+)?" + Nn + "\\s*m(?![²³l\\wà-ÿ])", "gi"), (m, a) => ` ⟦haut:${nb(a)}⟧ `); }
+               .replace(new RegExp("(?:sous\\s+plafond|hsp)\\s+(?:de\\s+|à\\s+|a\\s+)?" + Nn + "(?!\\s*(?:m²|m³|ml|m2|€))\\s*m?(?![²³l\\wà-ÿ\\d])", "gi"), (m, a) => ` ⟦haut:${nb(a)}⟧ `)
+               .replace(new RegExp("(?:(?:avec|et)\\s+)?" + Nn + "\\s*m?\\s+(?:de\\s+)?sous[- ]plafond" + NA, "gi"), (m, a) => ` ⟦haut:${nb(a)}⟧ `)
+               .replace(new RegExp("(?:(?:le|les)\\s+)?plafonds?\\s+(?:est\\s+|sont\\s+)?(?:à|a)\\s+" + Nn + "(?!\\s*(?:m²|m³|ml|m2|€))\\s*m?(?![²³l\\wà-ÿ\\d])", "gi"), (m, a) => ` ⟦haut:${nb(a)}⟧ `)
+               .replace(new RegExp("(?:(?:il\\s+y\\s+a|on\\s+a|[çc]a\\s+fait)\\s+)?" + Nn + "\\s*m?\\s+de\\s+(?:hauteur|haut)" + NA, "gi"), (m, a) => ` ⟦haut:${nb(a)}⟧ `); }
   { const cm = body.match(/(?<![\d,.])(\d)\s+couches?/i); if (cm) F.couches = Number(cm[1]); }
   body = body.replace(W("aussi|[ée]galement|euh|ben|bah|hein|en\\s+gros|tu\\s+vois|du\\s+genre|tant\\s+qu(?:e\\s+j'y\\s+suis|'on\\s+y\\s+est|'[àa]\\s+faire)|pendant\\s+qu(?:e\\s+j'y\\s+suis|'on\\s+y\\s+est)|au\\s+passage|si\\s+possible|bien\\s+s[uû]r|bien\\s+entendu|[àa]\\s+la\\s+louche|je\\s+dirais?|on\\s+va\\s+dire|disons|grosso\\s+modo|comme\\s+d'habitude|normalement|[àa]\\s+vue\\s+de\\s+nez|quelque\\s+chose\\s+comme|dans\\s+les(?=\\s+\\d+(?:,\\d+)?\\s*(?:m²|m³|ml|m|€|jours?|heures?)(?![\\wà-ÿ]))|[àa]\\s+peu\\s+pr[eè]s|environ|approximativement|des\\s+2\\s+c[oô]t[ée]s|sur\\s+les\\s+2\\s+(?:faces|c[oô]t[ée]s)|des\\s+2\\s+faces|recto\\s+verso"), " ").replace(/¶/g, " . ");
 
@@ -1180,7 +1183,8 @@ function analyse(dictee, biblio, opts) {
         else made.push(mk(zs[0] === "plafond" ? "peinture des plafonds" : "peinture des murs", qM));
       } else if (fx && fx.sol && !paintDone.has(titre) && !(fx._fait && !room)) {
         const h = fx.haut || 2.5, murs = Math.round(4 * Math.sqrt(fx.sol) * h * 10) / 10;
-        if (!zs.length || zs.includes("mur")) { const a = mk("peinture des murs", murs, { estime: true, estimeInfo: { sol: fx.sol, hauteur: h, murs, plus: 0 } }); if (a) { a.details = a.details.concat([`Surface estimée : pièce de ${fr(fx.sol)} m² au sol, hauteur ${fr(h)} m (à vérifier, ouvertures non déduites)`]); made.push(a); notes.push(`Peinture : ${fr(murs)} m² de murs calculés pour une pièce carrée de ${fr(fx.sol)} m² au sol et ${fr(h)} m de hauteur. Mesurez sur place et corrigez si besoin.`); if (fx.haut && fx.haut < 2.2) notes.push(`Hauteur sous plafond de ${fr(fx.haut)} m : inhabituelle, vérifiez la dictée.`); } }
+        if (!zs.length || zs.includes("mur")) { const sur = !!fx.haut, a = mk("peinture des murs", murs, { estime: !sur, estimeInfo: { sol: fx.sol, hauteur: h, murs, plus: 0, sur } }); if (a) { a.details = a.details.concat([sur ? `Surface calculée : pièce de ${fr(fx.sol)} m² au sol, hauteur ${fr(h)} m` : `Surface estimée : pièce de ${fr(fx.sol)} m² au sol, hauteur supposée ${fr(h)} m`]); made.push(a);
+          notes.push(sur ? `Peinture : ${fr(murs)} m² de murs calculés (${fr(fx.sol)} m² au sol, ${fr(h)} m de hauteur ; pièce supposée carrée, portes et fenêtres non déduites).` : `Peinture : hauteur sous plafond non dictée, ${fr(h)} m supposés : ${fr(murs)} m² de murs (pièce supposée carrée). Indiquez la hauteur ou la surface si besoin.`); if (fx.haut && fx.haut < 2.2) notes.push(`Hauteur sous plafond de ${fr(fx.haut)} m : inhabituelle, vérifiez la dictée.`); } }
         if (!zs.length || zs.includes("plafond")) made.push(mk("peinture des plafonds", fx.sol));
         paintDone.add(titre); fx._fait = true;
       } else if (fx && fx.sol && (paintDone.has(titre) || (fx._fait && !room))) { continue; }
@@ -1314,12 +1318,15 @@ function analyse(dictee, biblio, opts) {
       if (!sol) { const fl = sec.lignes.find(l => l.type === "mo" && l.unite === "m²" && l.quantite !== null && !l.estime && zoneDe(l) === "sol"); const qs = new Set(sec.lignes.filter(l => l.type === "mo" && l.unite === "m²" && l.quantite !== null && !l.estime && zoneDe(l) === "sol").map(l => l.quantite));
         if (fl && (sec.titre !== "Travaux" || qs.size === 1)) { sol = fl.quantite; deduit = true; } }
       if (!sol) continue;
-      const h = fx.haut || 2.5, murs = Math.round(4 * Math.sqrt(sol) * h * 10) / 10; let nM = 0, nS = 0;
+      const h = fx.haut || (F.rooms["*"] && F.rooms["*"].haut) || 2.5, murs = Math.round(4 * Math.sqrt(sol) * h * 10) / 10; let nM = 0, nS = 0;
+      const sur = !!(fx.haut || (F.rooms["*"] && F.rooms["*"].haut));        // surface au sol ET hauteur connues : calcul direct, sans question
       for (const l of sec.lignes) { if (l.type !== "mo" || l.unite !== "m²" || l.quantite !== null) continue; const z = zoneDe(l); if (!z) continue;
         if (sec.titre === "Travaux" && deduit && z !== "sol") continue;       // sans pièce nommée : seules les lignes de sol reprennent la surface
         if (z === "sol" || z === "plafond") { l.quantite = sol; l.details = (l.details || []).concat([`Surface ${z === "sol" ? "au sol" : "du plafond"} : ${fr(sol)} m²`]); nS++; }
-        else { l.quantite = r2(murs + (z === "mur" ? 0 : sol)); l.estime = true; l.estimeInfo = { sol, hauteur: h, murs, plus: z === "mur" ? 0 : sol }; l.details = (l.details || []).concat([`Surface estimée : pièce de ${fr(sol)} m² au sol, hauteur ${fr(h)} m (à vérifier, ouvertures non déduites)`]); nM++; } }
-      if (nM) notes.push(`${sec.titre} : ${fr(murs)} m² de murs calculés pour une pièce carrée de ${fr(sol)} m² au sol et ${fr(h)} m de hauteur${fx.haut ? "" : " (hauteur supposée)"}. Mesurez sur place et corrigez si besoin.`);
+        else { l.quantite = r2(murs + (z === "mur" ? 0 : sol)); l.estime = !sur; l.estimeInfo = { sol, hauteur: h, murs, plus: z === "mur" ? 0 : sol, sur };
+          l.details = (l.details || []).concat([sur ? `Surface calculée : ${fr(murs)} m² de murs (pièce de ${fr(sol)} m² au sol, hauteur ${fr(h)} m)${z === "mur" ? "" : ` + ${fr(sol)} m² au sol`}` : `Surface estimée : pièce de ${fr(sol)} m² au sol, hauteur supposée ${fr(h)} m`]); nM++; } }
+      if (nM) notes.push(sur ? `${sec.titre} : ${fr(murs)} m² de murs calculés (${fr(sol)} m² au sol, ${fr(h)} m de hauteur ; pièce supposée carrée, portes et fenêtres non déduites).`
+                             : `${sec.titre} : hauteur sous plafond non dictée, ${fr(h)} m supposés : ${fr(murs)} m² de murs (pièce supposée carrée). Indiquez la hauteur ou la surface si besoin.`);
       if (nS && deduit) notes.push(`${sec.titre} : ${fr(sol)} m² au sol repris pour les lignes sans surface.`); } }
   // format de carrelage dit une seule fois : vaut pour les autres lignes de pose
   { const tl = sections.flatMap(s => s.lignes).filter(l => l.tile); const withF = tl.filter(l => l.tile.fmt || l.tile.tier); const kinds = new Set(withF.map(l => l.tile.fmt ? l.tile.fmt.join("x") : l.tile.tier));
