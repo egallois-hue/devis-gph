@@ -15,18 +15,22 @@ const r2 = n => Math.round((n + Number.EPSILON) * 100) / 100;
 const NUM = { zero: 0, un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10, onze: 11, douze: 12, treize: 13,
   quatorze: 14, quinze: 15, seize: 16, vingt: 20, vingts: 20, trente: 30, quarante: 40, cinquante: 50, soixante: 60, cent: 100, cents: 100, mille: 1000, mil: 1000 };
 const NUMWORD = new RegExp("\\b(?:" + Object.keys(NUM).join("|") + ")(?:[\\s-]+(?:et[\\s-]+)?(?:" + Object.keys(NUM).join("|") + "))*\\b", "gi");
-function wordsToNumber(str) {
+function wordsToNumber(str) {   // renvoie un ou plusieurs nombres : « soixante soixante » → "60 60"
   const toks = low(str).split(/[\s-]+/).filter(t => t && t !== "et");
-  let total = 0, cur = 0;
+  const out = []; let total = 0, cur = 0, last = null;
+  const push = () => { if (last !== null) out.push(total + cur); total = 0; cur = 0; last = null; };
   for (let i = 0; i < toks.length; i++) {
     const v = NUM[toks[i]]; if (v === undefined) return null;
-    if (v === 100) cur = (cur || 1) * 100;
-    else if (v === 1000) { total += (cur || 1) * 1000; cur = 0; }
-    else if (v === 20 && cur % 100 === 4) cur = cur - 4 + 80;          // quatre-vingt
-    else if (v >= 10 && v < 20 && cur % 100 >= 60 && cur % 10 === 0 && cur % 100 !== 0) cur += v;  // soixante-dix, quatre-vingt-douze
-    else cur += v;
+    if (v === 100) { cur = (cur % 100 || 1) * 100 + (cur - cur % 100); last = 100; continue; }
+    if (v === 1000) { total += (cur || 1) * 1000; cur = 0; last = 1000; continue; }
+    if (v === 20 && last === 4) { cur = cur - 4 + 80; last = 80; continue; }                 // quatre-vingt
+    if (v >= 10 && v < 20 && (cur % 100 === 60 || cur % 100 === 80) && last !== null && last >= 60) { cur += v; last = v; continue; }  // soixante-dix
+    const ok = last === null || (last === 10 && v >= 7 && v <= 9 && cur % 100 % 10 === 0) || last >= 100 && cur % 100 === 0 || ((cur % 100 === 70 || cur % 100 === 90) && v < 10) || (last >= 20 && v < 10 && cur % 10 === 0 && last % 10 === 0);
+    if (!ok) push();
+    cur += v; last = v;
   }
-  return total + cur;
+  push();
+  return out.join(" ");
 }
 function convertNumbers(text) {
   // "vingt-huit virgule cinq" → "28,5"
@@ -197,7 +201,7 @@ function match(index, text, unite) {
     const compat = qa.some(t => d.acts.has(t)) || (qa.includes("pos") && d.acts.has("remplac")) || (qa.includes("remplac") && d.acts.has("pos"));
     if (qa.length && d.acts.size && !compat) score -= 0.25;
     if (unite && d.b.unite === unite) score += 0.08;
-    else if (unite && d.b.unite && unite !== d.b.unite && !(unite === "u" && d.b.unite === "forfait")) score -= 0.06;
+    else if (unite && d.b.unite && unite !== d.b.unite && !(unite === "u" && d.b.unite === "forfait")) score -= (["m²", "ml", "m³"].includes(unite) && ["m²", "ml", "m³"].includes(d.b.unite)) ? 0.2 : 0.06;
     out.push({ b: d.b, score: r2(score), hits });
   }
   return out.sort((a, b) => b.score - a.score).slice(0, 5);
@@ -338,6 +342,36 @@ function conversation(body) {
   return { text: t.replace(/\s*¶\s*/g, ". ").replace(/\s{2,}/g, " ").trim(), facts };
 }
 
+/* ---------- Carrelage : format, joints, type de pose ---------- */
+const CARRELAGE_DEFAUT = {   // ajustements du prix de pose au m² (modifiables dans Réglages)
+  formats: [{ max: 10, nom: "mosaïque", delta: 25 }, { max: 20, nom: "petit format", delta: 15 }, { max: 45, nom: "format standard", delta: 0 },
+            { max: 90, nom: "grand format", delta: -5 }, { max: 999, nom: "très grand format", delta: 20 }],
+  jointFin: 5, epoxy: 15, decale: 5, diagonale: 12, chevron: 25 };
+const TILE_CTX = /carrel|fa(?:i|ï)ence|carreaux?|dalles?|gr(?:e|è)s|mosa(?:i|ï)que|format|plinthes?\s+carrel/i;
+function extractTile(raw) {
+  const t = { fmt: null, tier: null, jointFin: false, epoxy: false, pose: null, txt: raw };
+  if (!TILE_CTX.test(raw)) return t;
+  let r = raw;
+  const fm = r.match(/(?:\b(?:au\s+|en\s+|de\s+)?format\s+(?:de\s+)?)?(?<![\d,.])(\d{1,3})\s*(?:x|×|\*|par|sur|fois)?\s*(\d{1,3})(?:\s*(?:cm|centim(?:e|è)tres?))?(?!\d|[.,]\d|\s*(?:m2|m²|m\b|m(?:e|è)tres?|ml|euros?|€|%|sacs?|kg|bo(?:i|î)tes?|cartons?|pots?))/i);
+  if (fm) { const a = Number(fm[1]), b = Number(fm[2]); if (a >= 5 && b >= 5 && a <= 320 && b <= 320) { t.fmt = [a, b]; r = r.replace(fm[0], " "); } }
+  if (!t.fmt && /mosa(?:i|ï)que/i.test(r)) t.tier = "mosaïque";
+  else if (!t.fmt && /petits?\s+(?:carreaux|format)|\bm(?:e|é)tro\b/i.test(r)) t.tier = "petit format";
+  else if (!t.fmt && /tr(?:e|è)s\s+grands?\s+formats?/i.test(r)) { t.tier = "très grand format"; r = r.replace(/(?:en\s+)?tr(?:e|è)s\s+grands?\s+formats?/i, " "); }
+  else if (!t.fmt && /grands?\s+formats?/i.test(r)) { t.tier = "grand format"; r = r.replace(/(?:en\s+)?grands?\s+formats?/i, " "); }
+  const jf = r.match(/(?:avec\s+(?:des\s+|un\s+)?)?joints?\s+(?:tr(?:e|è)s\s+)?(?:fins?|minces?|de\s+[12](?:[.,]5)?\s*mm)/i); if (jf) { t.jointFin = true; r = r.replace(jf[0], " "); }
+  const ep = r.match(/(?:avec\s+(?:un\s+|des\s+)?)?(?:joints?\s+)?(?:e|é)poxy/i); if (ep) { t.epoxy = true; r = r.replace(ep[0], " "); }
+  const po = r.match(/(?:en\s+|pose\s+)?(d(?:e|é)cal(?:e|é)e?s?|quinconce|(?:a|à)\s+(?:la\s+)?(?:mi|tiers)|diagonale|chevrons?|b(?:a|â)tons?\s+rompus|point\s+de\s+hongrie)\b/i);
+  if (po) { t.pose = /diag/i.test(po[1]) ? "diagonale" : /chevron|b(?:a|â)ton|hongrie/i.test(po[1]) ? "chevron" : "decale"; r = r.replace(po[0], " "); }
+  t.txt = r.replace(/\s+(?:avec|et)\s*(?=[,.;]|$)/gi, " ").replace(/\s{2,}/g, " ").trim();
+  return t;
+}
+function tileTier(t, cfg) {
+  if (t.fmt) { const big = Math.max(t.fmt[0], t.fmt[1]); return cfg.formats.find(f => big <= f.max) || cfg.formats[cfg.formats.length - 1]; }
+  if (t.tier) return cfg.formats.find(f => f.nom === t.tier) || null;
+  return null;
+}
+const FC_RE = /(?:,\s*|\s+)(?:avec\s+)?(?:(?:la|les)\s+)?(?:fournitures?|mat(?:e|é)riels?|mat(?:e|é)riaux)\s+(?:comprises|comprise|compris|incluses|incluse|inclus)\b|(?:,\s*|\s+)fourni(?:e|s|es)?\s+(?:et\s+)?pos(?:e|é)(?:e|s|es)?|(?:,\s*|\s+)avec\s+(?:la\s+|les\s+)?fournitures?(?!\s+(?:de|du|d['’]))|(?:,\s*|\s+)tout\s+compris/i;
+
 /* ---------- Analyse complète ---------- */
 function analyse(dictee, biblio, opts = {}) {
   const today = opts.today || new Date();
@@ -346,6 +380,8 @@ function analyse(dictee, biblio, opts = {}) {
   const { client, consumed } = extractClient(text);
   let body = text; for (const c of consumed) body = body.replace(c, " ");
   const conv = conversation(body); body = conv.text; const F = conv.facts;
+  const TC = Object.assign({}, CARRELAGE_DEFAUT, opts.carrelage || {});
+  const gTile = (() => { const fs = []; for (const c of splitClauses(body)) { const x = extractTile(c); if (x.fmt || x.tier) fs.push(x); } const k = new Set(fs.map(x => x.fmt ? x.fmt.join("x") : x.tier)); return k.size === 1 ? fs[0] : null; })();
   // TVA
   let tva = 10; const lt = low(text);
   if (/tva\s*(?:a|à|de)?\s*20|20\s*%\s*(?:de\s*)?tva|local (?:professionnel|commercial)|construction neuve|logement neuf|bureaux?\b/.test(lt)) tva = 20;
@@ -391,12 +427,15 @@ function analyse(dictee, biblio, opts = {}) {
     if (/^(?:les\s+)?fournitures?\b|^(?:mat(?:e|é)riel|mat(?:e|é)riaux)\s*:/i.test(raw)) {
       fournMode = true; raw = raw.replace(/^(?:les\s+)?fournitures?\s*:?\s*|^(?:mat(?:e|é)riel|mat(?:e|é)riaux)\s*:\s*/i, "").trim(); if (!raw) continue;
     }
+    let fc = false; { const m = raw.match(FC_RE); if (m) { fc = true; raw = raw.replace(m[0], " ").replace(/\s{2,}/g, " ").trim(); } }
     const isFourn = prendFourn || fournMode || /^(?:fourniture|fournir|achat|acheter)\b|\bfourniture d[eu']/i.test(raw);
     if (prendFourn) raw = raw.replace(/\s*,\s*/g, " ").replace(/^(un|une|le|la)?\s*ballon\b(?!\s+d['’]eau)(?:\s+de)?/i, "ballon d'eau chaude").replace(/\s+avec\s+\d\s+couches?\b/i, "").replace(/\b(\d+)\s*l\b/gi, "$1 L");
     if (isFourn && !prendFourn && /,\s*\S/.test(raw)) {   // liste de fournitures : une ligne par article
       const items = raw.split(/,\s+(?:et\s+)?(?=\D|\d+\s+[a-zà-ÿ])/i).map(x => x.trim()).filter(Boolean);
       if (items.length > 1) { fournMode = fournMode || /^(?:fourniture|fournir|achat|acheter)/i.test(raw); pending.unshift(...items.map((x, i) => (i === 0 ? x : "fourniture " + x))); continue; }
     }
+    const tile = extractTile(raw); raw = tile.txt;
+    if (!isFourn && (tile.fmt || tile.tier || /carrel|fa(?:i|ï)ence|mosa(?:i|ï)que/i.test(raw)) && !tokens(raw).some(t => ACTIONS.has(t))) raw = "pose de " + raw.replace(/^(?:du|de la|des|le|la|les|en)\s+/i, "");
     let lineRoom = null; const rm2 = roomOf(raw); if (rm2 && !isFourn && rm2.name !== "WC" && rm2.name !== "Extérieur") lineRoom = rm2.name;
     const hasAction = tokens(raw).some(t => ACTIONS.has(t));
     if (!isFourn && !hasAction && lastAction && /^\s*(?:(?:les?|la|des)\s+)?(?:plafonds?|murs?|sols?|portes?|plinthes?|boiseries?|radiateurs?)\b/i.test(raw)) raw = lastAction + " " + raw;
@@ -431,6 +470,29 @@ function analyse(dictee, biblio, opts = {}) {
     if (!isFourn && ligne.quantite === null && (ligne.unite === "u" || ligne.unite === "forfait")) ligne.quantite = 1;
     const titre = isFourn ? "Fournitures" : (lineRoom && cur && lineRoom !== cur.titre && !/^(?:Salle|WC)/.test(cur.titre) ? lineRoom : (cur ? cur.titre : (lineRoom || "Travaux")));
     const sec = getSec(titre);
+    if (fc && !isFourn) ligne.fournitureComprise = true;
+    const fmtTxt = x => x.fmt ? `${x.fmt[0]}×${x.fmt[1]}` : "";
+    if (isFourn && (tile.fmt || tile.tier) && TILE_CTX.test(ligne.designation)) {
+      ligne.designation = ligne.designation.replace(/\b(carrelage|fa(?:i|ï)ence|carreaux?|dalles?|gr(?:e|è)s(?:\s+c(?:e|é)rame)?)\b/i, m => m + (tile.fmt ? " " + fmtTxt(tile) + " cm" : " " + tile.tier)).replace(/\s{2,}/g, " ");
+    }
+    const isPoseCarrelage = !isFourn && (/^(?:pose|mise en (?:place|œuvre))\b.*(?:carrel|fa(?:i|ï)ence|mosa)/i.test(ligne.designation) || (ligne.biblio_id && /carrelage|fa(?:i|ï)ence/i.test(ligne.designation) && /^pose/i.test(ligne.designation)));
+    if (isPoseCarrelage) {
+      const tx = (tile.fmt || tile.tier) ? tile : (gTile || tile);
+      const tier = tileTier(tx, TC); const plus = [];
+      let delta = 0;
+      if (tier) { delta += Number(tier.delta) || 0; ligne.details = [`Carreaux ${tx.fmt ? fmtTxt(tx) + " cm (" + tier.nom + ")" : tier.nom}`, ...ligne.details]; }
+      if (tile.jointFin || (tx === gTile && gTile && gTile.jointFin)) { delta += Number(TC.jointFin) || 0; plus.push("joints fins"); ligne.details.push("Joints fins (1 à 2 mm), carreaux rectifiés, calepinage soigné"); }
+      if (tile.epoxy || (tx === gTile && gTile && gTile.epoxy)) { delta += Number(TC.epoxy) || 0; plus.push("joint époxy"); ligne.details.push("Jointoiement à la résine époxy"); }
+      const pose = tile.pose || (tx === gTile && gTile && gTile.pose);
+      if (pose) { delta += Number(TC[pose]) || 0; plus.push(pose === "decale" ? "pose décalée" : pose === "diagonale" ? "pose en diagonale" : "pose en chevrons"); }
+      if (tier || plus.length) {
+        ligne.designation = ligne.designation.replace(/,?\s*jointoiement compris/i, "") + (tx.fmt ? `, format ${fmtTxt(tx)}` : tier ? `, ${tier.nom}` : "") + (plus.length ? ", " + plus.join(", ") : "") + (/jointoiement compris/i.test(ligne.designation) ? ", jointoiement compris" : "");
+        if (ligne.source === "bibliotheque" && ligne.pu !== null && delta) {
+          const base = ligne.pu; ligne.pu = Math.max(0, r2(base + delta)); ligne.ajustCarrelage = delta;
+          notes.push(`Carrelage ${tx.fmt ? fmtTxt(tx) : tier ? tier.nom : ""}${plus.length ? " (" + plus.join(", ") + ")" : ""} : pose à ${String(ligne.pu).replace(".", ",")} €/m² au lieu de ${String(base).replace(".", ",")} € (${delta > 0 ? "+" : ""}${String(delta).replace(".", ",")} €). Barème réglable dans Réglages.`);
+        }
+      }
+    }
     if (!isFourn) {
       const dt = tokens(desc);
       // bavardage : ni action, ni chiffre, ni prestation reconnue → non retenu
@@ -479,6 +541,6 @@ function analyse(dictee, biblio, opts = {}) {
   return { client, objet, tva, sections, notes, chantier: "", dureeJours };
 }
 
-const Moteur = { analyse, reformulate, match, buildIndex, tokens, convertNumbers, parseAmounts, splitClauses, extractClient };
+const Moteur = { CARRELAGE_DEFAUT, analyse, reformulate, match, buildIndex, tokens, convertNumbers, parseAmounts, splitClauses, extractClient };
 if (typeof module !== "undefined" && module.exports) module.exports = Moteur; else root.Moteur = Moteur;
 })(typeof window !== "undefined" ? window : globalThis);

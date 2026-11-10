@@ -220,6 +220,7 @@ function parseOld(lines, d) {
   }
   if (buf.length) flush(null, null, null, null);
   d.sections = d.sections.filter(s => s.lignes.length);
+  for (const s of d.sections) for (const l of s.lignes) if (l.type === "mo" && (l.details || []).some(x => /fournitures?\s+inclu|fournitures?\s+compris/i.test(x))) l.fournitureComprise = true;
 }
 
 /* PDF produit par cette application (tableau N°, désignation, qté, unité, PU, total) */
@@ -240,8 +241,10 @@ function parseAppPDF(lines, d) {
     if (/^Validit[ée] du devis|^MODALIT|Devis N° .* Page/i.test(C)) { inTable = /Page/.test(C) && !/^Validit/i.test(C) ? inTable : false; cur = null; continue; }
     const m = C.match(ROW);
     if (m) { if (!sec) { sec = { titre: "", lignes: [] }; d.sections.push(sec); }
-      cur = { type: /^fournitures?$/i.test(sec.titre) ? "fourniture" : "mo", designation: m[2], details: [], quantite: toNum(m[3]), unite: m[4], pu: toNum(m[5]), source: "saisi" }; sec.lignes.push(cur); continue; }
+      cur = { type: /^fournitures?$/i.test(sec.titre) ? "fourniture" : "mo", fournitureComprise: false, designation: m[2], details: [], quantite: toNum(m[3]), unite: m[4], pu: toNum(m[5]), source: "saisi" }; sec.lignes.push(cur); continue; }
     if (/^[A-ZÀ-Ý0-9' ,\-–]{3,}$/.test(C) && !/\d+,\d{2}/.test(C)) { sec = { titre: C.charAt(0) + C.slice(1).toLowerCase(), lignes: [] }; d.sections.push(sec); cur = null; continue; }
+    if (cur && /^Fournitures comprises$/i.test(C)) { cur.fournitureComprise = true; continue; }
+    if (cur && /^Main-d['’]œuvre seule$/i.test(C)) continue;
     if (cur && C && !/^(?:N°|QT[ÉE])/.test(C)) { if (cur.details.length || /^[-•·]/.test(C) || !/^[a-zà-ÿ]/.test(C)) cur.details.push(C.replace(/^[-•·]\s*/, "")); else cur.designation += " " + C; }
   }
   d.sections = d.sections.filter(s => s.lignes.length);

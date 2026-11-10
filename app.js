@@ -361,6 +361,13 @@ function viewReglages() {
     <div><label class="f">Solde %</label><input class="i" value="${100 - c.acomptes[0] - c.acomptes[1]}" disabled></div></div>
     <div class="row"><div><label class="f">Validité devis (mois)</label><input class="i" data-cfg="validiteMois" inputmode="numeric" value="${c.validiteMois}"></div>
     <div><label class="f">Prix fournitures (jours)</label><input class="i" data-cfg="validiteFournituresJours" inputmode="numeric" value="${c.validiteFournituresJours}"></div></div></div>
+  <div class="card"><h2>Pose de carrelage : prix selon le format</h2>
+    <div class="hint">Ajustement en € par m² ajouté au prix de pose de votre catalogue (signe moins pour baisser). Il s'applique quand la dictée donne le format, par exemple « carrelage 60 60 » ou « 30 par 60 ».</div>
+    ${(() => { const tc = carrelageCfg(); const lab = ["Mosaïque (≤ 10 cm)", "Petit format (≤ 20 cm)", "Format standard (≤ 45 cm)", "Grand format (≤ 90 cm, ex. 60×60)", "Très grand format (> 90 cm, ex. 60×120)"];
+      const opt = [["jointFin", "Joints fins (1-2 mm)"], ["epoxy", "Joint époxy"], ["decale", "Pose décalée"], ["diagonale", "Pose en diagonale"], ["chevron", "Pose en chevrons"]];
+      return `<div class="row" style="flex-wrap:wrap">${tc.formats.map((f, i) => `<div style="flex:1 1 45%"><label class="f">${lab[i]}</label><input class="i" inputmode="decimal" data-tcf="${i}" value="${nfr(f.delta)}"></div>`).join("")}</div>
+      <div class="row" style="flex-wrap:wrap">${opt.map(([k, l]) => `<div style="flex:1 1 45%"><label class="f">${l}</label><input class="i" inputmode="decimal" data-tco="${k}" value="${nfr(tc[k])}"></div>`).join("")}</div>`; })()}
+  </div>
   <div class="card"><h2>Numérotation</h2>
     <div class="hint">Format AAAAMM + N + numéro. Le compteur repart à 01 chaque 1er octobre.</div>
     <label class="f">Dernier numéro utilisé hors application — exercice ${exerciceLabel(k)}</label>
@@ -379,6 +386,8 @@ function viewReglages() {
     <label class="btn ghost block" style="margin-top:4px">Restaurer une sauvegarde<input type="file" accept=".json,application/json" hidden data-a="restore"></label>
   </div>`;
 }
+function carrelageCfg() { const D = window.Moteur.CARRELAGE_DEFAUT, c = S.cfg.carrelage || {};
+  return Object.assign({}, D, c, { formats: D.formats.map((f, i) => Object.assign({}, f, (c.formats || [])[i] || {})) }); }
 async function cfgSave() {
   const c = Object.assign({}, S.cfg, { compteurs: Object.assign({}, S.cfg.compteurs) });
   document.querySelectorAll("[data-cfg]").forEach(el => { const k = el.dataset.cfg; c[k] = ["validiteMois", "validiteFournituresJours"].includes(k) ? Number(el.value) || DEFAULT_CFG[k] : el.value.trim(); });
@@ -386,6 +395,10 @@ async function cfgSave() {
   if (!(a0 >= 0 && a1 >= 0 && a0 + a1 <= 100)) return toast("Acomptes invalides : le total doit rester ≤ 100 %.");
   c.acomptes = [a0, a1, 100 - a0 - a1];
   document.querySelectorAll("[data-cnt]").forEach(el => { c.compteurs[el.dataset.cnt] = Math.max(0, parseInt(el.value) || 0); });
+  const tc = carrelageCfg(); const nv = el => { const v = num(el.value); return v === null ? 0 : v; };
+  document.querySelectorAll("[data-tcf]").forEach(el => { tc.formats[Number(el.dataset.tcf)].delta = nv(el); });
+  document.querySelectorAll("[data-tco]").forEach(el => { tc[el.dataset.tco] = nv(el); });
+  c.carrelage = tc;
   S.cfg = c; render();
   try { await put("config/app", c); toast("Réglages enregistrés"); } catch (e) {}
 }
@@ -434,6 +447,7 @@ function editorStep2() {
             <div><label>Unité</label><select data-l="unite" data-si="${si}" data-li="${li}">${[...new Set([l.unite, ...UNITES])].filter(Boolean).map(u => `<option ${u === l.unite ? "selected" : ""}>${esc(u)}</option>`).join("")}</select></div>
             <div><label>${l.type === "fourniture" ? "Prix fournisseur HT" : "Prix unitaire HT"}</label><input inputmode="decimal" class="${needPu ? "need" : ""}" data-l="pu" data-si="${si}" data-li="${li}" value="${nfr(num(l.pu))}" placeholder="${l.type === "fourniture" ? "Prix du devis fournisseur" : "À saisir"}"></div>
           </div>
+          ${l.type !== "fourniture" ? `<label class="fc"><input type="checkbox" data-a="lfc" data-si="${si}" data-li="${li}" ${l.fournitureComprise ? "checked" : ""}><span>Prix avec fournitures comprises<br><small class="hint">${l.fournitureComprise ? "Le prix inclut le matériel" : "Décoché : prix de la main-d'œuvre seule"}</small></span></label>` : ""}
           <div class="acts">
             ${l.source === "bibliotheque" ? `<span class="pill">Prix de vos prestations</span>` : l.source === "dicte" ? `<span class="pill g">Prix dicté</span>` : l.source === "saisi" ? `<span class="pill g">Prix saisi</span>` : needPu ? `<span class="pill w">${l.type === "fourniture" ? "Prix fournisseur à saisir" : "Prix à saisir"}</span>` : ""}
             <span style="flex:1"></span>
@@ -542,7 +556,7 @@ function toggleMic() {
 function aiRun() {
   const text = (S.draft.dictee || "").trim();
   if (text.length < 8) return toast("Dictez d'abord le devis.");
-  const res = window.Moteur.analyse(text, S.biblio);
+  const res = window.Moteur.analyse(text, S.biblio, { carrelage: carrelageCfg() });
   applyResult(res);
   S.step = 2; persistDraft(); render(); window.scrollTo(0, 0);
   if (res.notes.length) { S.aiNotes = res.notes; showNotes(); }
@@ -630,9 +644,10 @@ async function finalize() {
     if (l.type !== "mo" || num(l.pu) === null || !l.designation) continue;
     let b = (l.biblio_id && S.biblio.find(x => x.id === l.biblio_id)) || S.biblio.find(x => norm(x.designation) === norm(l.designation) && x.unite === l.unite);
     const said = l.raw ? String(l.raw).replace(/\d+(?:[.,]\d+)?\s*(?:€|euros?|m2|m²|mètres?\s*carrés?|ml)?/gi, " ").replace(/\s+/g, " ").trim().slice(0, 80) : "";
-    if (b) { b = Object.assign({}, b, { pu: num(l.pu), uses: (b.uses || 0) + 1, lastUsed: Date.now() }); if (!b.details?.length && l.details?.length) b.details = l.details;
+    if (b && l.fournitureComprise && !b.fournitureComprise) { b = Object.assign({}, b, { uses: (b.uses || 0) + 1, lastUsed: Date.now() }); }
+    else if (b) { b = Object.assign({}, b, { pu: r2(num(l.pu) - (num(l.ajustCarrelage) || 0)), uses: (b.uses || 0) + 1, lastUsed: Date.now() }); if (!b.details?.length && l.details?.length) b.details = l.details;
       if (said && !(b.aliases || []).some(a => norm(a) === norm(said))) b.aliases = [...(b.aliases || []), said].slice(-15); }
-    else b = { id: uid(), metier: s.titre || "Divers", designation: l.designation, details: l.details || [], unite: l.unite, pu: num(l.pu), origine: "auto", uses: 1, lastUsed: Date.now(), createdAt: Date.now(), aliases: said ? [said] : [] };
+    else b = { id: uid(), metier: s.titre || "Divers", fournitureComprise: !!l.fournitureComprise, designation: l.designation, details: l.details || [], unite: l.unite, pu: num(l.pu), origine: "auto", uses: 1, lastUsed: Date.now(), createdAt: Date.now(), aliases: said ? [said] : [] };
     const i = S.biblio.findIndex(x => x.id === b.id); if (i >= 0) S.biblio[i] = b; else S.biblio.push(b);
     await put("biblio/" + b.id, b).catch(() => {});
   }
@@ -718,7 +733,8 @@ async function buildPDF(d) {
       n++;
       const tl = wrap(l.designation, DES_W, "PM", 9);
       const dl = (l.details || []).flatMap(x => wrap("– " + x, DES_W, "PL", 7.8));
-      const rh = 14 + tl.length * 11.5 + (dl.length ? 3 + dl.length * 10.5 : 0) + 8;
+      const fm = l.type !== "fourniture" ? (l.fournitureComprise ? "Fournitures comprises" : "Main-d'œuvre seule") : "";
+      const rh = 14 + tl.length * 11.5 + (dl.length ? 3 + dl.length * 10.5 : 0) + (fm ? 11 : 0) + 8;
       if (y + rh > BOTTOM) { y = newPage(); z = 0; }
       if (z++ % 2 === 1) { fill(ZEB); doc.rect(M, y, W - 2 * M, rh, "F"); }
       const ty = y + 17;
@@ -726,6 +742,7 @@ async function buildPDF(d) {
       tx(M + 13, ty, String(n), "PB", 7.5, ROI, "center");
       tl.forEach((ln, i) => tx(X_DES + 4, ty + i * 11.5, ln, "PM", 9));
       dl.forEach((ln, i) => tx(X_DES + 4, ty + tl.length * 11.5 + 2 + i * 10.5, ln, "PL", 7.8, GREY));
+      if (fm) tx(X_DES + 4, ty + tl.length * 11.5 + (dl.length ? 3 + dl.length * 10.5 : 0) + 1, fm, "PM", 7.4, l.fournitureComprise ? ROI : GREY);
       tx(X_Q, ty, nfr(num(l.quantite)), "P", 8.6, INK, "right");
       tx(X_U + 14, ty, l.unite || "", "P", 8.6, INK, "center");
       tx(X_PU, ty, eur(num(l.pu)), "P", 8.6, INK, "right");
@@ -924,6 +941,7 @@ document.addEventListener("click", async e => {
   if (el.tagName === "INPUT" && el.type === "file") return;
   switch (a) {
     case "tab": setView(el.dataset.v); break;
+    case "lfc": { const l = d.sections[si].lignes[li]; l.fournitureComprise = el.checked; persistDraft(); render(); break; }
     case "fe": S.fe = el.dataset.e || ""; render(); break;
     case "etat": d.etat = el.dataset.e; await persistDraft(true); render(); toast("Statut : " + ETATS.find(x => x[0] === d.etat)[1]); break;
     case "new": { const cur = lsGet("gph_current", null); openDraft(cur && cur.statut === "brouillon" && !S.devis.find(x => x.id === cur.id) && (cur.dictee || cur.sections?.length) ? cur : newDraft(), 1); break; }
@@ -952,7 +970,7 @@ document.addEventListener("click", async e => {
     case "l-up": case "l-down": { const L = d.sections[si].lignes, j = a === "l-up" ? li - 1 : li + 1; if (j >= 0 && j < L.length) { [L[li], L[j]] = [L[j], L[li]]; render(); persistDraft(); } break; }
     case "ltype": { const l = d.sections[si].lignes[li]; if (l.type !== el.dataset.t) { l.type = el.dataset.t; if (l.type === "fourniture" && l.source !== "dicte") { l.pu = null; l.source = "a_saisir"; l.biblio_id = null; } render(); persistDraft(); } break; }
     case "l-lib": libPicker(si); break;
-    case "pick": { const b = S.biblio.find(x => x.id === el.dataset.id); if (b) { d.sections[S.pickSi].lignes.push({ id: uid(), type: "mo", designation: b.designation, details: (b.details || []).slice(), quantite: b.unite === "forfait" ? 1 : null, unite: b.unite, pu: num(b.pu), source: "bibliotheque", biblio_id: b.id }); closeModal(); render(); persistDraft(); } break; }
+    case "pick": { const b = S.biblio.find(x => x.id === el.dataset.id); if (b) { d.sections[S.pickSi].lignes.push({ id: uid(), type: "mo", fournitureComprise: !!b.fournitureComprise, designation: b.designation, details: (b.details || []).slice(), quantite: b.unite === "forfait" ? 1 : null, unite: b.unite, pu: num(b.pu), source: "bibliotheque", biblio_id: b.id }); closeModal(); render(); persistDraft(); } break; }
     case "pick-client": { const c = S.clients.find(x => x.id === el.dataset.id); if (c) { d.client = { nom: c.nom, adresse: c.adresse || "", cpVille: c.cpVille || "", email: c.email || "", tel: c.tel || "" }; render(); persistDraft(); } break; }
     case "idem": d.chantierIdem = el.checked; render(); persistDraft(); break;
     case "pj-del": d.pj.splice(Number(el.dataset.i), 1); render(); persistDraft(); break;

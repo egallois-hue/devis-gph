@@ -97,3 +97,4 @@ a.mail{color:var(--roi);font-weight:600;word-break:break-all}
 .chip b{font-weight:600;color:var(--grey)}.chip.on{background:var(--roi);border-color:var(--roi);color:#fff}.chip.on b{color:#fff}
 .etats{display:flex;flex-wrap:wrap;gap:8px}
 .pill.r{background:#FDECEC;color:var(--err)}
+label.fc{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:8px;font-weight:500}label.fc input{width:20px;height:20px}
