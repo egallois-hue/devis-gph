@@ -55,10 +55,16 @@ const S = {
 function exerciceKey(iso) { const [y, m] = iso.split("-").map(Number); return String(m >= 10 ? y : y - 1); }
 function exerciceLabel(k) { return `${k}-${Number(k) + 1}`; }
 /* Suivi d'un devis émis */
-const ETATS = [["attente", "En attente", "grey"], ["envoye", "Envoyé", "b"], ["accepte", "Accepté", "g"], ["en_cours", "Chantier en cours", "w"], ["fini_paye", "Fini et payé", "ok"]];
-const ETAT_FICHIER = { attente: "EN-ATTENTE", envoye: "ENVOYE", accepte: "ACCEPTE", en_cours: "CHANTIER-EN-COURS", fini_paye: "FINI-ET-PAYE" };
-function etatOf(d) { return d.statut === "finalise" ? (d.etat || "attente") : null; }
-function etatPill(d) { const e = etatOf(d); if (!e) return `<span class="pill grey">${d.importe ? "Importé · à vérifier" : "Brouillon"}</span>`; const x = ETATS.find(z => z[0] === e) || ETATS[0]; return `<span class="pill ${x[2]}">${x[1]}</span>`; }
+const ETATS = [["attente", "En attente", "grey"], ["envoye", "Envoyé", "b"], ["accepte", "Accepté", "g"], ["acompte1", "Acompte 1 reçu", "g"],
+  ["en_cours", "Chantier en cours", "w"], ["acompte2", "Acompte 2 reçu", "w"], ["fini", "Chantier fini", "b"], ["paye", "Payé", "ok"]];
+const ETAT_FICHIER = { attente: "EN-ATTENTE", envoye: "ENVOYE", accepte: "ACCEPTE", acompte1: "ACOMPTE-1-RECU", en_cours: "CHANTIER-EN-COURS", acompte2: "ACOMPTE-2-RECU", fini: "CHANTIER-FINI", paye: "PAYE" };
+function etatOf(d) { if (d.statut !== "finalise") return null; const e = d.etat === "fini_paye" ? "paye" : (d.etat || "attente"); return ETAT_FICHIER[e] ? e : "attente"; }
+/* « En retard » : automatique quand la fin annoncée est passée et que le chantier n'est pas fini */
+function isLate(d) { const e = etatOf(d); return !!(e && d.finPrevue && ["accepte", "acompte1", "en_cours", "acompte2"].includes(e) && todayISO() > d.finPrevue); }
+function addWorkDays(iso, n) { const t = new Date(iso + "T12:00:00"); let k = Math.max(0, Math.ceil(n) - 1); while (t.getDay() === 0 || t.getDay() === 6) t.setDate(t.getDate() + 1);
+  while (k > 0) { t.setDate(t.getDate() + 1); if (t.getDay() !== 0 && t.getDay() !== 6) k--; } return t.toISOString().slice(0, 10); }
+function etatPill(d) { const e = etatOf(d); if (!e) return `<span class="pill grey">${d.importe ? "Importé · à vérifier" : "Brouillon"}</span>`; const x = ETATS.find(z => z[0] === e) || ETATS[0];
+  return `<span class="pill ${x[2]}">${x[1]}</span>${isLate(d) ? `<br><span class="pill r" style="margin-top:4px">En retard</span>` : ""}`; }
 function nextNumero(iso) {
   const k = exerciceKey(iso);
   let max = Number((S.cfg.compteurs || {})[k] || 0);
@@ -266,15 +272,16 @@ function statusBanner() {
 function viewList() {
   const q = norm(S.q || "");
   const rows = S.devis.filter(d => !q || norm([d.numero, d.client?.nom, d.client?.cpVille, d.objet].join(" ")).includes(q))
-    .filter(d => !S.fe || (S.fe === "brouillon" ? d.statut !== "finalise" : etatOf(d) === S.fe))
+    .filter(d => !S.fe || (S.fe === "brouillon" ? d.statut !== "finalise" : S.fe === "retard" ? isLate(d) : etatOf(d) === S.fe))
     .sort((a, b) => String(b.numero || "~").localeCompare(String(a.numero || "~")) || (b.updatedAt || 0) - (a.updatedAt || 0));
-  const cnt = e => S.devis.filter(d => e === "brouillon" ? d.statut !== "finalise" : etatOf(d) === e).length;
-  const chips = [["", "Tous", S.devis.length], ...ETATS.map(x => [x[0], x[1], cnt(x[0])]), ["brouillon", "Brouillons", cnt("brouillon")]].filter(x => x[0] === "" || x[2])
+  const cnt = e => S.devis.filter(d => e === "brouillon" ? d.statut !== "finalise" : e === "retard" ? isLate(d) : etatOf(d) === e).length;
+  const chips = [["", "Tous", S.devis.length], ["retard", "⚠ En retard", cnt("retard")], ...ETATS.map(x => [x[0], x[1], cnt(x[0])]), ["brouillon", "Brouillons", cnt("brouillon")]].filter(x => x[0] === "" || x[2])
     .map(x => `<button class="chip ${(S.fe || "") === x[0] ? "on" : ""}" data-a="fe" data-e="${x[0]}">${x[1]} <b>${x[2]}</b></button>`).join("");
   const k = exerciceKey(todayISO());
   const fin = S.devis.filter(d => d.statut === "finalise" && d.exercice === k);
   const ca = fin.reduce((a, d) => a + (d.totaux?.ht || 0), 0);
-  return statusBanner() + `
+  const nbLate = cnt("retard");
+  return statusBanner() + (nbLate ? `<div class="banner w" data-a="fe" data-e="retard" style="cursor:pointer"><b>${nbLate} chantier(s) en retard</b> : la fin annoncée est passée. Touchez pour les voir.</div>` : "") + `
   <div class="card">
     <div class="row" style="align-items:center">
       <div><div class="hint">Exercice ${exerciceLabel(k)}</div><div style="font-size:22px;font-weight:700;color:var(--roi)">${fin.length} devis</div></div>
@@ -490,8 +497,13 @@ function editorStep3() {
   </div>
   ${d.statut === "finalise" ? `
   <div class="card"><h2>Suivi du devis</h2>
-    <div class="etats">${ETATS.map(x => `<button class="btn ${etatOf(d) === x[0] ? "" : "sec"} sm" data-a="etat" data-e="${x[0]}">${x[1]}</button>`).join("")}</div>
-    <div class="hint" style="margin-top:8px">Le statut est ajouté au nom du PDF.</div></div>
+    ${isLate(d) ? `<div class="banner w" style="background:#FDECEC;color:var(--err)"><b>Chantier en retard</b> : la fin annoncée (${dFR(d.finPrevue)}) est passée.</div>` : ""}
+    <div class="etats">${ETATS.map(x => `<button class="btn ${etatOf(d) === x[0] ? "" : "sec"} sm" data-a="etat" data-e="${x[0]}">${x[1]}${x[0] === "acompte1" ? " · " + eur(t.a1) : x[0] === "acompte2" && t.p[1] ? " · " + eur(t.a2) : x[0] === "paye" ? " · solde " + eur(t.solde) : ""}</button>`).join("")}</div>
+    <div class="row" style="margin-top:10px">
+      <div><label class="f">Début des travaux</label><input class="i" type="date" data-dd="debut" value="${esc(d.debut || "")}"></div>
+      <div><label class="f">Durée annoncée (jours ouvrés)</label><input class="i" data-dd="dureeJours" inputmode="decimal" value="${esc(d.dureeJours ?? "")}"></div></div>
+    <label class="f">Fin annoncée</label><input class="i" type="date" data-dd="finPrevue" value="${esc(d.finPrevue || "")}">
+    <div class="hint" style="margin-top:8px">La fin se calcule avec le début et la durée (week-ends exclus), ou se saisit directement. Passé cette date sans « Chantier fini », le devis passe automatiquement « En retard ». Le statut est ajouté au nom du PDF.</div></div>
   <div class="card"><h2>Envoyer</h2>
     <button class="btn block" data-a="pdf-dl">Télécharger le PDF</button>
     <div style="height:10px"></div>
@@ -540,6 +552,7 @@ function applyResult(res) {
   for (const k of ["nom", "adresse", "cpVille", "email", "tel"]) if (res.client[k]) d.client[k] = res.client[k];
   if (res.objet) d.objet = res.objet;
   d.tva = res.tva;
+  if (res.dureeJours) d.dureeJours = res.dureeJours;
   d.sections = res.sections.map(s => ({ titre: s.titre === "Travaux" ? "" : s.titre, lignes: s.lignes.map(l => Object.assign({ id: uid() }, l)) }));
 }
 function showNotes() {
@@ -809,7 +822,7 @@ function embedViaCanvas(out, blob) {
     }; im.onerror = () => res(null); im.src = URL.createObjectURL(blob);
   });
 }
-function pdfName(d) { const e = etatOf(d); return `Devis_${d.numero}_${(d.client.nom || "client").replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_|_$/g, "")}${e ? "_" + ETAT_FICHIER[e] : ""}.pdf`; }
+function pdfName(d) { const e = etatOf(d); return `Devis_${d.numero}_${(d.client.nom || "client").replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_|_$/g, "")}${e ? "_" + ETAT_FICHIER[e] : ""}${isLate(d) ? "_EN-RETARD" : ""}.pdf`; }
 async function savePDF(mail) {
   const d = S.draft;
   const btn = $(mail ? "[data-a='pdf-mail']" : "[data-a='pdf-dl']"); if (btn) { btn.disabled = true; btn.textContent = "Création du PDF…"; }
@@ -991,6 +1004,11 @@ document.addEventListener("change", e => {
   if (el.dataset.a === "devis-import") { importDevis([...el.files]); el.value = ""; return; }
   if (el.dataset.a === "cat-import" || el.dataset.a === "restore") { importJSON(el.files[0], el.dataset.a); el.value = ""; return; }
   if (el.dataset.l === "unite" && S.draft) { S.draft.sections[Number(el.dataset.si)].lignes[Number(el.dataset.li)].unite = el.value; persistDraft(); }
+  if (el.dataset.dd && S.draft) {
+    const d = S.draft, k = el.dataset.dd; d[k] = k === "dureeJours" ? (num(el.value) ?? null) : (el.value || null);
+    if ((k === "debut" || k === "dureeJours") && d.debut && num(d.dureeJours)) d.finPrevue = addWorkDays(d.debut, num(d.dureeJours));
+    persistDraft(true); render(); return;
+  }
   if (el.dataset.d === "date" && S.draft) { S.draft.date = el.value || todayISO(); persistDraft(); }
 });
 window.addEventListener("pagehide", () => { if (S.draft) lsSet("gph_current", S.draft); });

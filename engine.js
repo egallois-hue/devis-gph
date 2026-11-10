@@ -473,7 +473,10 @@ function analyse(dictee, biblio, opts = {}) {
   if (!client.adresse) notes.push("Adresse non reconnue : complétez-la.");
   const nbSans = sections.reduce((a, s) => a + s.lignes.filter(l => l.pu === null).length, 0);
   if (nbSans) notes.push(`${nbSans} ligne(s) sans prix : à saisir (en orange).`);
-  return { client, objet, tva, sections, notes, chantier: "" };
+  let dureeJours = null;
+  const du = text.match(/(?:prendre|prend|dur(?:e|é)e|durer|dure|compter|faut|pr(?:e|é)voir|chantier\s+de)[^.¶\d]{0,40}?(\d+(?:[.,]5)?)\s*(jours?|journ(?:e|é)es?|semaines?)/i);
+  if (du) { dureeJours = Number(du[1].replace(",", ".")) * (/semaine/i.test(du[2]) ? 5 : 1); notes.push(`Durée du chantier : ${String(dureeJours).replace(".", ",")} jour(s) ouvré(s), reprise dans le suivi du devis.`); }
+  return { client, objet, tva, sections, notes, chantier: "", dureeJours };
 }
 
 const Moteur = { analyse, reformulate, match, buildIndex, tokens, convertNumbers, parseAmounts, splitClauses, extractClient };
