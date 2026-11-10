@@ -47,6 +47,7 @@ const CFG = window.GPH_CONFIG || {};
 const S = {
   sb: null, session: null, uid: null, online: navigator.onLine, syncing: false, lastSync: lsGet("gph_lastsync", null),
   cfg: Object.assign({}, DEFAULT_CFG, lsGet("gph_cfg", {})),
+  appris: lsGet("gph_appris", {}),
   devis: lsGet("gph_devis", []), biblio: lsGet("gph_biblio", []), clients: lsGet("gph_clients", []),
   view: "list", draft: null, step: 1, pjCache: {}, ready: false
 };
@@ -101,7 +102,7 @@ function problemes(d) {
 
 
 /* ===================== Données : cache local + synchronisation Supabase ===================== */
-function saveLocal() { lsSet("gph_cfg", S.cfg); lsSet("gph_devis", S.devis); lsSet("gph_biblio", S.biblio); lsSet("gph_clients", S.clients); }
+function saveLocal() { lsSet("gph_cfg", S.cfg); lsSet("gph_appris", S.appris); lsSet("gph_devis", S.devis); lsSet("gph_biblio", S.biblio); lsSet("gph_clients", S.clients); }
 const COLL = { devis: "devis", biblio: "biblio", clients: "clients", config: "config" };
 function queue() { return lsGet("gph_queue", []); }
 function setQueue(q) { lsSet("gph_queue", q); }
@@ -135,7 +136,7 @@ async function flush() {
 }
 function applyRow(r) {
   const list = r.collection === "devis" ? S.devis : r.collection === "biblio" ? S.biblio : r.collection === "clients" ? S.clients : null;
-  if (r.collection === "config") { if (!r.deleted && r.id === "app") S.cfg = Object.assign({}, DEFAULT_CFG, r.data); return; }
+  if (r.collection === "config") { if (!r.deleted && r.id === "app") S.cfg = Object.assign({}, DEFAULT_CFG, r.data); if (!r.deleted && r.id === "appris") S.appris = Object.assign({}, S.appris, r.data || {}); return; }
   if (!list) return;
   const i = list.findIndex(x => x.id === r.id);
   if (r.deleted) { if (i >= 0) list.splice(i, 1); return; }
@@ -483,6 +484,7 @@ function editorStep2() {
           ${l.type !== "fourniture" ? `<label class="fc"><input type="checkbox" data-a="lfc" data-si="${si}" data-li="${li}" ${l.fournitureComprise ? "checked" : ""}><span>Prix avec fournitures comprises<br><small class="hint">${l.fournitureComprise ? "Le prix inclut le matériel" : "Décoché : prix de la main-d'œuvre seule"}</small></span></label>` : ""}
           <div class="acts">
             ${l.source === "bibliotheque" ? `<span class="pill">Prix de vos prestations</span>` : l.source === "dicte" ? `<span class="pill g">Prix dicté</span>` : l.source === "saisi" ? `<span class="pill g">Prix saisi</span>` : needPu ? `<span class="pill w">${l.type === "fourniture" ? "Prix fournisseur à saisir" : "Prix à saisir"}</span>` : ""}
+            ${l.incertain ? `<span class="pill w" data-a="l-sug" data-si="${si}" data-li="${li}">À vérifier</span>` : ""}
             <span style="flex:1"></span>
             <button class="btn ghost sm" data-a="l-up" data-si="${si}" data-li="${li}">↑</button>
             <button class="btn ghost sm" data-a="l-down" data-si="${si}" data-li="${li}">↓</button>
@@ -591,7 +593,7 @@ function toggleMic() {
 function aiRun() {
   const text = (S.draft.dictee || "").trim();
   if (text.length < 8) return toast("Dictez d'abord le devis.");
-  const res = window.Moteur.analyse(text, S.biblio, { carrelage: carrelageCfg() });
+  const res = window.Moteur.analyse(text, S.biblio, { carrelage: carrelageCfg(), appris: S.appris });
   applyResult(res);
   { const ex = S.draft.clientId ? S.clients.find(c => c.id === S.draft.clientId) : S.clients.find(c => S.draft.client.nom && norm(c.nom) === norm(S.draft.client.nom));
     if (ex) { S.draft.clientId = ex.id; const sn = snapshotOf(normClient(ex)); for (const k of Object.keys(sn)) if (!S.draft.client[k]) S.draft.client[k] = sn[k]; } }
@@ -613,6 +615,12 @@ function showNotes() {
   <div class="hint">Chaque ligne reconnue reprend la désignation et le prix de vos prestations. Touchez « Prestations proches » pour en choisir une autre.</div>
   <button class="btn block" data-a="close" style="margin-top:12px">Compris</button>`);
   S.aiNotes = null;
+}
+function apprendre(l, id) {      // id = identifiant de prestation, ou null (« garder ma formulation »)
+  if (!l || !l.cle) return;
+  const keys = Object.keys(S.appris); if (keys.length > 800) delete S.appris[keys[0]];
+  S.appris[l.cle] = id; lsSet("gph_appris", S.appris);
+  put("config/appris", S.appris).catch(() => {});
 }
 function suggestModal(si, li) {
   const l = S.draft.sections[si].lignes[li];
@@ -1000,8 +1008,8 @@ document.addEventListener("click", async e => {
     case "ai-run": aiRun(); break;
     case "mic": toggleMic(); break;
     case "l-sug": suggestModal(si, li); break;
-    case "sug-pick": { const b = S.biblio.find(x => x.id === el.dataset.id), l = d.sections[si].lignes[li]; if (b) { Object.assign(l, { designation: b.designation, details: (b.details || []).slice(), unite: l.unite || b.unite, biblio_id: b.id }); if (l.source !== "dicte" && l.source !== "saisi") { l.pu = num(b.pu); l.source = l.pu === null ? "a_saisir" : "bibliotheque"; } if (b.unite === "forfait" && num(l.quantite) === null) { l.quantite = 1; l.unite = "forfait"; } closeModal(); render(); persistDraft(); } break; }
-    case "sug-own": { const l = d.sections[si].lignes[li]; l.designation = window.Moteur.reformulate(l.raw); l.details = []; l.biblio_id = null; if (l.source === "bibliotheque") { l.pu = null; l.source = "a_saisir"; } closeModal(); render(); persistDraft(); break; }
+    case "sug-pick": { const b = S.biblio.find(x => x.id === el.dataset.id), l = d.sections[si].lignes[li]; if (b) { Object.assign(l, { designation: b.designation, details: (b.details || []).slice(), unite: l.unite || b.unite, biblio_id: b.id }); if (l.source !== "dicte" && l.source !== "saisi") { l.pu = num(b.pu); l.source = l.pu === null ? "a_saisir" : "bibliotheque"; } if (b.unite === "forfait" && num(l.quantite) === null) { l.quantite = 1; l.unite = "forfait"; } l.incertain = false; apprendre(l, b.id); closeModal(); render(); persistDraft(); toast("C'est noté : je m'en souviendrai la prochaine fois"); } break; }
+    case "sug-own": { const l = d.sections[si].lignes[li]; l.designation = window.Moteur.reformulate(l.raw); l.details = []; l.biblio_id = null; if (l.source === "bibliotheque") { l.pu = null; l.source = "a_saisir"; } l.incertain = false; apprendre(l, null); closeModal(); render(); persistDraft(); break; }
     case "unlock": unlock(); break;
     case "lock-on": enableLock(); break;
     case "lock-off": disableLock(); break;

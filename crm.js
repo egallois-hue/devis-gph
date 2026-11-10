@@ -21,7 +21,7 @@ function clientDisplay(c) {
 }
 function clientCpVille(c) { return [c.cp, c.ville].filter(Boolean).join(" ").trim() || c.cpVille || ""; }
 function splitCpVille(s) { const m = String(s || "").match(/^\s*(\d{2})\s?(\d{3})\s+(.+)$/); return m ? { cp: m[1] + m[2], ville: m[3].trim() } : { cp: "", ville: String(s || "").trim() }; }
-/* « M. et Mme Colas-Bara », « Mme Hubert », « Copropriété … » → fiche structurée */
+/* « M. et Mme Martin-Durand », « Mme Leroy », « Copropriété … » → fiche structurée */
 function parseNom(nom) {
   const n = String(nom || "").trim(); const c = { type: "particulier", p1: cleanP(), p2: cleanP(), societe: "" };
   if (!n) return c;

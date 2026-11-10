@@ -12,6 +12,8 @@ function buildQuestions(d, res) {
   for (const { l, li, si } of qLineList(d)) {
     if (l.type === "fourniture") continue;
     const id = l.id;
+    if (l.incertain && l.suggestions && l.suggestions.length > 1 && l.raw) { const alt = l.suggestions.filter(x => x.id !== l.biblio_id).slice(0, 2);
+      add({ key: "inc:" + id, kind: "choix", id, alt: [l.biblio_id].concat(alt.map(x => x.id)), text: `« ${l.raw.slice(0, 60)} » : j'ai retenu « ${l.designation.slice(0, 50)} ». Est-ce bien ça ? Sinon : ${alt.map((x, k) => `${k + 2} = ${x.designation.slice(0, 40)}`).join(" ; ")}`, ph: "Répondre : oui, ou 2, ou 3 (vide = oui)" }); }
     if (l.estime && l.estimeInfo) add({ key: "est:" + id, kind: "qte", id, text: `Murs : j'ai estimé ${String(l.quantite).replace(".", ",")} m² (pièce carrée de ${String(l.estimeInfo.sol).replace(".", ",")} m², ${String(l.estimeInfo.hauteur).replace(".", ",")} m de haut). Quelle est la vraie surface ?`, ph: "Ex. : 42 m² (laisser vide si l'estimation convient)" });
     else if (num(l.quantite) === null) add({ key: "q:" + id, kind: "qte", id, text: `Quelle quantité pour « ${l.designation.slice(0, 70)} » ?`, ph: "Ex. : 25 m², 12 ml, 3 unités, 1 forfait" });
     if (/carrel|fa(?:i|ï)ence/i.test(l.designation) && /^pose/i.test(l.designation) && !/format|mosa(?:i|ï)que/i.test(l.designation))
@@ -48,6 +50,10 @@ function applyAnswers() {
       if (!r.client.nom && !d.client.nom) d.client.nom = a; done++; continue;
     }
     const f = q.id && findLine(d, q.id); if (q.id && !f) continue;
+    if (q.kind === "choix") { const n = /^\s*(?:oui|ok|c'est [çc]a|1)\b/i.test(a) ? 1 : Number((t.match(/\b([23])\b/) || [])[1] || 0); const b = n > 1 && S.biblio.find(x => x.id === q.alt[n - 1]);
+      if (n === 1) { f.l.incertain = false; apprendre(f.l, f.l.biblio_id); done++; }
+      else if (b) { Object.assign(f.l, { designation: b.designation, details: (b.details || []).slice(), biblio_id: b.id, incertain: false }); if (f.l.source !== "dicte" && f.l.source !== "saisi") { f.l.pu = num(b.pu); f.l.source = f.l.pu === null ? "a_saisir" : "bibliotheque"; } apprendre(f.l, b.id); done++; }
+      continue; }
     if (q.kind === "qte") { const p = M.parseAmounts(t); const n = p.quantite ?? num(t.match(/\d+(?:[.,]\d+)?/)?.[0]); if (n !== null && n !== undefined) { f.l.quantite = n; if (p.unite && p.unite !== "forfait") f.l.unite = p.unite; f.l.estime = false; done++; } }
     else if (q.kind === "pu") { const n = num(t.match(/\d+(?:[.,]\d+)?/)?.[0]); if (n !== null) { f.l.pu = n; f.l.source = "saisi"; done++; } }
     else if (q.kind === "refine") {

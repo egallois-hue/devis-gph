@@ -93,7 +93,7 @@ const UQ = "m²|m³|ml|m|heures?|h|jours?|journ(?:é|e)es?|semaines?|€";
 function normalizeOral(src) {
   const notes = [];
   let t = " " + String(src || "").replace(/[’‘`´]/g, "'").replace(/[  ]/g, " ").replace(/œ/g, "oe").replace(/Œ/g, "Oe").replace(/[«»"]/g, " ").replace(/\r/g, "") + " ";
-  t = t.replace(new RegExp(NB + "([a-zà-ÿ']{2,})(?:\\s+\\1" + NA + ")+", "gi"), "$1");          // « une une » → « une »
+  t = t.replace(new RegExp(NB + "([a-zà-ÿ']{2,})(?:\\s+\\1" + NA + ")+", "gi"), (m, w) => NUM[low(w)] !== undefined ? m : w);          // « une une » → « une »
   for (const [re, rep] of ORAL) t = t.replace(re, rep);
   t = convertNumbers(t);
   // unités : une seule écriture
@@ -744,8 +744,21 @@ function segmenter(body) {
     if (a === "en" && T[i + 1] && !isNumTok(T[i + 1]) && !/^fournitures?$/.test(b) && b !== "plus" && b !== "fait") { let k = i + 1; while (T[k] && k < i + 4 && !SOFT.has(L(k)) && !HARD_1.has(L(k)) && !SUBJECT.has(L(k)) && !isNumTok(T[k]) && !(k > i + 1 && ACT_WORD.test(L(k))) && !/^une?$/.test(L(k))) { k++; if (T[k - 1].hard || T[k - 1].soft) break; } return k - i; }
     return 0;
   };
+  const fmtNb = k => T[k] && /^\d{1,3}$/.test(T[k].l) && +T[k].l >= 5 && +T[k].l <= 320;
+  const tileTrailAt = i => {     // « 60 60 », « 60 par 60 », « en 30 60 », « avec joint fin », « joints époxy »
+    const a = L(i), b = L(i + 1), c = L(i + 2);
+    if (fmtNb(i) && fmtNb(i + 1) && !UNIT_TOK.has(L(i + 2)) && L(i + 2) !== "€") return 2;
+    if (fmtNb(i) && /^(?:x|par|sur)$/.test(b) && fmtNb(i + 2) && !UNIT_TOK.has(L(i + 3)) && L(i + 3) !== "€") return 3;
+    if (/^(?:en|format)$/.test(a) && fmtNb(i + 1) && (fmtNb(i + 2) || (/^(?:x|par|sur)$/.test(c) && fmtNb(i + 3)))) return 1;
+    if (/^(?:en|au|de)$/.test(a) && b === "format" && fmtNb(i + 2)) return 2;
+    if (a === "avec" && /^joints?$/.test(b)) return 1;
+    if (a === "avec" && /^(?:des|un|du|le|les)$/.test(b) && /^joints?$/.test(c)) return 2;
+    if (/^joints?$/.test(a) && /^(?:fins?|epoxy|minces?)$/.test(b)) return 2;
+    if (/^joints?$/.test(a) && b === "tres" && /^fins?$/.test(c)) return 3;
+    return 0; };
   for (let i = 0; i < T.length; i++) {
     const t = T[i], l = t.l;
+    if (!pend && cur.length && cur.some(x => /^(?:carrelages?|fa[iï]ences?|carreaux|dalles?|mosa[iï]ques?)$/.test(x.l))) { const n = tileTrailAt(i); if (n) { for (let j = 0; j < n; j++) cur.push(T[i + j]); const last = T[i + n - 1]; i += n - 1; if (last.hard) flush("hard"); else if (last.soft) flush("soft"); continue; } }
     const push = k => { for (let j = 0; j < k; j++) { cur.push(T[i + j]); } const last = T[i + k - 1]; i += k - 1; if (last.hard) flush("hard"); else if (last.soft) flush("soft"); };
     const prev = cur.length ? cur[cur.length - 1].l : null;
     const onlyLead = cur.length > 0 && cur.every(x => SUBJECT.has(x.l) || LEADW.has(x.l));
@@ -1158,7 +1171,7 @@ function analyse(dictee, biblio, opts) {
       }
     }
     // appariement au catalogue (avec et sans l'action héritée)
-    const key = learnKey(desc); ligne.cle = key;
+    const key = [...new Set(tk)].sort().join(" ") || learnKey(desc); ligne.cle = key;       // clé d'apprentissage : mots utiles, sans la pièce ni les quantités
     if (!am.compte && (am.unite === "h" || am.unite === "jour")) { tk = tokens(desc.replace(/\spour\s.*$/i, " ")).filter(t => !roomTok.has(t)).concat([am.unite === "h" ? "heur" : "jour"]); acts = tk.filter(t => ACTIONS.has(t)); others = tk.filter(t => !ACTIONS.has(t) && !ZONES.has(t)); }
     let ms = matchTokens(index, tk, am.compte ? null : am.unite, opt), d = decide(ms);
     if (acts.length === 1 && !others.length && !zones.length && d.ok && d.best.score < 0.85) d = Object.assign({}, d, { ok: false, sure: false });       // un verbe seul ne suffit pas

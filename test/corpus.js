@@ -12,6 +12,16 @@
    Les clients et adresses sont fictifs. Aucun prix du catalogue ne figure ici. */
 module.exports = [
 /* ============================== ENTRAÎNEMENT ============================== */
+/* Cas de non-régression tirés des demandes réelles (format de carrelage dit avant la surface) */
+{ id: "R01", set: "train",
+  text: `Devis pour madame Martin 3 rue des Lilas à Dourdan. Cuisine : pose de carrelage soixante soixante avec joint fin 18 m2. Peinture des murs 30 m2 fournitures comprises.`,
+  client: { nom: "Mme Martin", adr: "3 rue des Lilas", ville: "Dourdan" },
+  L: [["P044", 18, "m²"], ["P021", 30, "m²", { fc: true }]] },
+{ id: "R02", set: "train",
+  text: `pour monsieur Durand 4 rue du Parc à Limours carrelage 60 60 avec joint fin dans la cuisine 18 m² et faïence 30 par 60 dans la salle de bain 22 m²`,
+  client: { nom: "M. Durand", adr: "4 rue du Parc", ville: "Limours" },
+  L: [["P044", 18, "m²"], ["P044", 22, "m²"]] },
+
 { id: "A01", set: "train",
   text: `J'ai un devis pour refaire de la peinture dans un salon avec une surface au sol de 30 m², et une hauteur sous plafond de 1,80 m donc je te laisse mesurer et me dire combien il y a de mètres carrés de peinture à faire l'idée c'est de prendre en fourniture une une peinture blanche, Tollens satinée classique avec trois couches, je pense que le devis va me prendre à peu près trois jours et je pense que je vais avoir des frais kilométriques parce qu'il y a plus de 100 km de chez moi, il est dans Paris centre donc compte ça aussi dans le devis il y a aussi la vitrification d'un parquet donc je vais le poncer et ensuite le revenir et dans ce chantier il y a aussi un petit chantier où je dois changer un ballon d'eau chaude, donc j'ai un peu de plomberie classique pour le changement d'un ballon d'eau chaude dépose et remplacement et le ballon d'eau chaude je prends un ballon de 60 l Leroy Merlin classique`,
   client: {}, duree: 3,
