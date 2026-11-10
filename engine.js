@@ -295,6 +295,100 @@ function reformulate(raw) {
   return cap(t.replace(/^(?:le|la|les|l'|du|des|de la|de l')\s*/i, ""));
 }
 
+/* ---------- Lexique parlé ----------
+   Façons de dire courantes sur un chantier, rattachées aux prestations du catalogue d'origine.
+   Format : identifiant → [mot de contrôle (doit figurer dans la désignation), tournures…].
+   Si la prestation a été renommée ou supprimée, le mot de contrôle ne correspond plus et l'entrée est ignorée.
+   Aucun prix ici : seulement du vocabulaire. Pour en ajouter, voir MOTEUR.md. */
+const PARLE = {
+  P001: ["protection", "protection des sols", "protection des meubles", "protéger les sols et les meubles", "bâchage", "protection du chantier", "protection et nettoyage"],
+  P004: ["gravats", "évacuation des gravats", "mise en déchetterie", "aller à la déchetterie", "emmener les gravats à la déchetterie", "enlèvement des gravats", "évacuation à la déchetterie"],
+  P005: ["gravats", "benne à gravats", "location de benne"],
+  P006: ["nettoyage", "nettoyage de fin de chantier", "nettoyage final", "ménage de fin de chantier", "nettoyage du chantier"],
+  P007: ["fournitures", "aller chercher les fournitures", "achat des fournitures", "approvisionnement du chantier"],
+  P009: ["papier peint", "enlever le papier peint", "décoller le papier peint", "arracher la tapisserie", "décoller la tapisserie", "dépose de la tapisserie"],
+  P010: ["carrelage", "dépose du carrelage", "enlever le carrelage", "casser le carrelage", "dépose de la faïence", "enlever la faïence", "piquer le carrelage", "piquage du carrelage", "démolition du carrelage"],
+  P011: ["revêtement", "enlever la moquette", "arracher la moquette", "dépose du lino", "enlever le lino", "dépose du parquet flottant", "dépose du sol PVC", "dépose de l'ancien revêtement de sol", "dépose du stratifié", "dépose du vinyle", "dépose de la moquette"],
+  P012: ["baignoire", "dépose de la baignoire", "enlever la baignoire", "dépose de la baignoire et du lavabo"],
+  P013: ["sanitaires", "dépose des sanitaires", "enlever tous les sanitaires", "dépose de tous les sanitaires"],
+  P014: ["wc", "dépose des toilettes", "enlever le WC", "dépose de l'ancien WC"],
+  P015: ["cloison", "dépose de la cloison", "démolition de la cloison", "abattre la cloison", "casser la cloison", "dépose du placo", "dépose du doublage", "tomber la cloison"],
+  P016: ["paroi", "dépose de la douche", "dépose du bac à douche", "dépose du receveur", "démolition de la douche", "dépose de la cabine de douche", "casser la douche"],
+  P017: ["clôture", "dépose de la clôture", "enlever le grillage", "arracher la clôture", "dépose de l'ancienne clôture"],
+  P018: ["enduit", "enduit de lissage", "ratissage des murs", "enduire les murs", "lisser les murs", "enduit sur les murs", "enduit complet"],
+  P019: ["fissures", "reboucher les fissures", "traitement des fissures", "ouvrir les fissures", "reprise des fissures", "fissures à reboucher"],
+  P020: ["ragréage", "ragréer le sol", "mise à niveau du sol", "ragréage autolissant", "rattraper le niveau du sol"],
+  P021: ["murs", "peinture des murs", "peindre les murs", "repeindre les murs", "murs à peindre"],
+  P022: ["plafonds", "peinture du plafond", "peindre le plafond", "repeindre le plafond", "plafond à peindre"],
+  P023: ["mezzanine", "plus-value hauteur", "plus-value grande hauteur", "travail en grande hauteur"],
+  P024: ["humide", "peinture des WC", "peinture de la salle de bain", "peinture de la salle d'eau", "repeindre les toilettes", "repeindre la salle de bain"],
+  P025: ["enduit", "enduit et peinture", "enduit puis peinture satin"],
+  P026: ["toile de verre", "pose de toile de verre", "toile de verre et peinture", "toile de verre à peindre", "fibre de verre à peindre"],
+  P027: ["reprise", "raccord de peinture", "retouche de peinture", "reprise de peinture", "retouches de peinture"],
+  P028: ["porte", "peinture d'une porte", "peindre une porte", "porte à peindre", "laquer une porte", "porte à laquer", "repeindre la porte"],
+  P029: ["double", "peinture d'une double porte", "double porte à peindre", "porte double à peindre"],
+  P030: ["radiateur", "peinture du radiateur", "peindre le radiateur", "radiateur à peindre", "repeindre le radiateur"],
+  P031: ["plinthes", "peinture des plinthes", "peindre les plinthes", "plinthes à peindre", "repeindre les plinthes"],
+  P032: ["papier", "pose de papier peint", "poser du papier peint", "pose de tapisserie", "coller le papier peint", "papier peint à poser"],
+  P033: ["démoussage", "nettoyage du muret", "nettoyage du balcon", "démousser le muret", "nettoyage haute pression", "nettoyage au karcher", "démoussage de la terrasse"],
+  P034: ["murets", "peinture du muret", "peindre le muret", "peinture des murets"],
+  P036: ["cloison", "cloison en placo", "monter une cloison", "création d'une cloison", "cloison BA13", "faire une cloison", "cloison de séparation"],
+  P037: ["hydrofuge", "placo hydrofuge", "cloison hydrofuge", "doublage hydrofuge", "placo vert", "plaques hydrofuges"],
+  P038: ["collé", "placo collé", "doublage en placo collé", "plaques de plâtre collées"],
+  P039: ["isolant", "isoler les murs", "doublage avec laine de verre", "doublage laine de roche", "contre-cloison isolante", "isolation par l'intérieur", "isolation des murs"],
+  P040: ["faux plafond", "plafond en placo", "plafond suspendu", "faux plafond BA13", "faux plafond en placo"],
+  P041: ["bandes", "bandes à joint", "bandes placo", "faire les bandes", "reprise des bandes", "bandes et enduit"],
+  P042: ["conduit", "coffrage de conduit", "coffrage coupe-feu", "coffrage du conduit de cheminée"],
+  P043: ["habillage", "habillage du bâti", "habillage du bâti-support", "habillage du WC suspendu", "coffrage du bâti-support", "habillage du Geberit"],
+  P044: ["carrelage", "pose du carrelage", "carrelage à poser", "poser la faïence", "faïence à poser", "crédence en carrelage", "crédence carrelée", "carreler le sol", "carreler les murs", "pose de carreaux", "repose de faïence", "pose de grès cérame"],
+  P045: ["format", "carrelage très grand format", "plus-value pose en diagonale"],
+  P046: ["jointoiement", "reprise des joints", "refaire les joints du carrelage", "refaire les joints", "reprendre les joints", "rejointoyer", "rejointoiement", "joints à refaire", "joints du carrelage à refaire"],
+  P047: ["plinthes", "plinthes carrelées", "plinthes en carrelage", "pose de plinthes en carrelage", "plinthes assorties au carrelage"],
+  P048: ["carrelage", "reprise de carrelage", "remplacer quelques carreaux", "changer des carreaux cassés", "réparation du carrelage mural", "reprise de faïence", "carreaux à remplacer"],
+  P049: ["vitrification", "vitrification du parquet", "vitrifier le parquet", "poncer et vitrifier", "ponçage et vitrification", "rénovation du parquet", "parquet à vitrifier", "vernir le parquet"],
+  P050: ["ponçage", "ponçage du parquet", "poncer le parquet", "parquet à poncer"],
+  P051: ["flottant", "pose de parquet flottant", "pose de stratifié", "poser du parquet flottant", "sol stratifié", "pose de sol stratifié", "parquet clipsable", "pose de parquet"],
+  P052: ["collé", "parquet collé", "pose de parquet massif", "parquet contrecollé", "pose de parquet à coller"],
+  P053: ["vinyle", "pose de sol PVC", "pose de lino", "pose de vinyle", "lames PVC", "dalles PVC", "lames vinyle clipsables", "poser du lino", "pose de sol souple"],
+  P054: ["plinthes", "pose de plinthes", "plinthes en bois", "plinthes MDF", "plinthes à poser", "poser les plinthes", "plinthes assorties au parquet"],
+  P055: ["plomberie", "plomberie de la salle de bain", "plomberie complète", "refaire la plomberie de la salle d'eau", "plomberie de la douche"],
+  P056: ["douche", "création d'une douche italienne", "faire une douche à l'italienne", "douche de plain-pied", "douche italienne à créer"],
+  P057: ["robinetterie", "pose de la robinetterie de douche", "pose de la colonne de douche", "pose du meuble vasque et de la paroi"],
+  P058: ["suspendu", "pose d'un WC suspendu", "installer un WC suspendu", "remplacer le WC par un suspendu", "toilettes suspendues"],
+  P059: ["wc", "remplacement du WC", "changer le WC", "changer les toilettes", "remplacer les toilettes", "pose d'un WC", "WC à changer", "toilettes à remplacer"],
+  P060: ["lavabo", "pose d'un lavabo", "pose d'un meuble vasque", "installer un lavabo", "remplacement du lavabo", "changer le lavabo", "pose d'un lave-mains", "pose de la vasque"],
+  P061: ["mitigeur", "changer le robinet", "remplacer le mitigeur", "changement de robinet", "remplacement de la robinetterie", "robinet à changer", "mitigeur à remplacer", "changer le mitigeur"],
+  P062: ["baignoire", "paroi de baignoire", "pose d'un pare-baignoire", "paroi sur la baignoire", "écran de baignoire"],
+  P063: ["baignoire", "refaire les joints de la baignoire", "joints silicone de la baignoire", "refaire le joint silicone", "joints de la douche à refaire", "étanchéité de la baignoire", "refaire les joints sanitaires"],
+  P064: ["receveur", "préparation pour le receveur", "scellement du receveur", "préparer le support du bac à douche"],
+  P065: ["évacuation", "fuite sous la douche", "réparation de l'évacuation de la douche", "réparer la fuite de la douche", "réparation de fuite sous douche"],
+  P066: ["siphon de sol", "pose d'un siphon de sol", "installer un siphon de sol", "mettre un siphon de sol"],
+  P067: ["machine à laver", "raccordement du lave-linge", "brancher la machine à laver", "raccorder le lave-vaisselle", "branchement de la machine à laver", "installer la machine à laver"],
+  P068: ["prise", "remplacement d'une prise", "changer une prise", "changer un interrupteur", "remplacer l'interrupteur", "prise à changer", "interrupteur à remplacer"],
+  P069: ["prise", "création d'une prise", "ajouter une prise", "prise supplémentaire", "rajouter une prise", "tirer une ligne pour une prise", "créer une prise", "prise à créer", "installer une prise"],
+  P070: ["point lumineux", "création d'un point lumineux", "ajouter un point lumineux", "créer un éclairage au plafond", "point lumineux avec interrupteur"],
+  P071: ["luminaire", "pose d'un luminaire", "pose d'un lustre", "pose d'une applique", "installer un luminaire", "brancher un lustre", "pose d'un plafonnier", "accrocher un lustre", "raccorder une applique", "pose d'une suspension"],
+  P072: ["spot", "pose de spots", "spots encastrés", "installer des spots", "spots à encastrer", "spots LED"],
+  P073: ["tableau", "contrôle du tableau électrique", "vérifier le tableau", "resserrer le tableau", "vérification du tableau électrique"],
+  P074: ["électricité", "électricité de la salle de bain", "électricité de la salle d'eau", "refaire l'électricité de la salle de bain"],
+  P075: ["radiateur", "pose d'un sèche-serviettes", "installer un radiateur", "radiateur électrique à poser", "remplacement du sèche-serviettes", "changer le sèche-serviettes", "pose d'un convecteur", "radiateur à remplacer"],
+  P076: ["fibre", "déplacer la fibre", "déplacement de la box", "déplacer la prise fibre", "déplacer l'arrivée internet"],
+  P077: ["vmc", "nettoyage de la VMC", "contrôle de la VMC", "entretien de la VMC", "nettoyer les bouches de VMC", "vérifier la VMC"],
+  P078: ["vmc", "pose d'une VMC", "installer une VMC", "installation d'une ventilation", "VMC simple flux", "mettre une VMC"],
+  P079: ["fenêtre", "pose d'une fenêtre", "remplacement de fenêtre", "changer une fenêtre", "fenêtre à remplacer", "changer les fenêtres", "remplacer la fenêtre"],
+  P080: ["bloc-porte", "pose d'un bloc-porte", "pose d'une porte intérieure", "installer une porte", "pose d'une porte", "changer la porte", "porte à poser"],
+  P081: ["placard", "porte de placard coulissante", "portes de placard", "pose de portes coulissantes", "portes de placard à poser"],
+  P082: ["coffrage", "coffrage en bois", "coffrage sur mesure", "cache-tuyaux en bois", "coffrage démontable", "coffrage pour cacher les tuyaux"],
+  P083: ["étanchéité", "étanchéité des murs", "traitement d'un mur humide", "étanchéité intérieure", "traitement des infiltrations"],
+  P084: ["étanchéité", "étanchéité sous carrelage", "étanchéité de la douche", "étanchéité de la salle de bain", "étanchéité liquide", "étanchéité avant carrelage"],
+  P087: ["clôture", "pose de clôture", "pose de grillage rigide", "clôture en panneaux rigides", "poser une clôture", "installer une clôture", "pose de panneaux rigides"],
+  P088: ["portillon", "pose d'un portillon", "portillon à poser", "installer un portillon"],
+  P089: ["occultantes", "pose d'occultants", "occultation de la clôture", "lattes occultantes", "kit occultant", "lamelles occultantes"],
+  P090: ["régie", "heures de main-d'œuvre", "heure de travail", "heures en régie", "taux horaire"],
+  P091: ["journée", "journée de travail", "jour de main-d'œuvre", "journée de boulot"],
+  P092: ["chauffe-eau", "remplacement du chauffe-eau", "changer le cumulus", "pose d'un chauffe-eau", "nouveau ballon d'eau chaude"],
+};
+
 /* ---------- Correspondance avec le catalogue ----------
    Chaque prestation a plusieurs « variantes » : sa désignation, chacun de ses alias, et l'ensemble.
    Le score est la meilleure ressemblance (cosinus pondéré par la rareté des mots) entre la phrase et une variante,
@@ -305,7 +399,8 @@ function buildIndex(biblio) {
     const des = String(b.designation || ""), cut = des.search(/\s[—–]\s|\(/);
     const main = tokens(cut > 0 ? des.slice(0, cut) : des), minor = cut > 0 ? tokens(des.slice(cut)) : [];
     const D = new Map(); for (const t of main) D.set(t, 1); for (const t of minor) if (!D.has(t)) D.set(t, 0.3);
-    const A = (b.aliases || []).map(a => { const m = new Map(); for (const t of tokens(a)) m.set(t, 1); return m; }).filter(m => m.size);
+    const pl = PARLE[b.id], plOk = pl && tokens(pl[0]).some(t => main.includes(t) || minor.includes(t));
+    const A = (b.aliases || []).concat(plOk ? pl.slice(1) : []).map(a => { const m = new Map(); for (const t of tokens(a)) m.set(t, 1); return m; }).filter(m => m.size);
     const U = new Map(D); for (const a of A) for (const t of a.keys()) U.set(t, Math.max(U.get(t) || 0, 1)); for (const t of (b.details || []).flatMap(tokens)) if (!U.has(t)) U.set(t, 0.3);
     for (const t of U.keys()) df[t] = (df[t] || 0) + 1;
     const acts = new Set(main.filter(t => ACTIONS.has(t)));
@@ -792,7 +887,7 @@ function analyse(dictee, biblio, opts) {
   const cleanQ = r => { const am = parseAmounts(extractTile(r).txt); return am.cleaned; };
   const hasQty = r => /\d+(?:,\d+)?\s*(?:m²|m³|ml|m(?![\wà-ÿ])|heures?|h\b|jours?|journ[ée]es?)/i.test(r) || /(?<![\d,.])\d{1,3}\s+(?!€|couches?)[a-zà-ÿ-]{3,}/i.test(r);
   const lieu = (r, t) => !ROOM_AS_OBJECT.has(r.base) || /(?:murs?|plafonds?|sols?|carrelage|peinture|fa[iï]ence|parquet)\s+(?:du|de\s+la|des|de\s+l'|dans\s+les?|dans\s+la|dans\s+l')\s*$/i.test(t.slice(0, r.index));
-  const noRoom = t => { let x = t; for (const r of roomsIn(t).reverse()) if (lieu(r, t) && !/^Salle de (?:bains|douche)$/.test(r.base) && !/^(?:pose|d[ée]pose|installation|montage)\s+(?:d'une?|de\s+la|du)\s+$/i.test(t.slice(0, r.index))) x = x.slice(0, r.index).replace(/(?:dans|de|du|des|pour|sur)\s+(?:la\s+|le\s+|les\s+|l')?$/i, "") + " " + x.slice(r.index + r.len); return x; };
+  const noRoom = t => { let x = t; for (const r of roomsIn(t).reverse()) if (lieu(r, t) && (!/^Salle de (?:bains|douche)$/.test(r.base) || /dans\s+(?:la|le|les|l'|sa|leur)\s*$/i.test(t.slice(0, r.index))) && !/^(?:pose|d[ée]pose|installation|montage)\s+(?:d'une?|de\s+la|du)\s+$/i.test(t.slice(0, r.index))) x = x.slice(0, r.index).replace(/(?:dans|de|du|des|pour|sur)\s+(?:la\s+|le\s+|les\s+|l')?$/i, "") + " " + x.slice(r.index + r.len); return x; };
   const sig = r => { const tk = tokens(noRoom(cleanQ(r).replace(/⟦[^⟧]*⟧/g, " "))); return { tk, acts: tk.filter(t => ACTIONS.has(t)), zones: tk.filter(t => ZONES.has(t)), others: tk.filter(t => !ACTIONS.has(t) && !ZONES.has(t)) }; };
 
   // rattachement des segments « souples » (et / avec / plus / virgule) au segment précédent quand ils décrivent la même prestation
@@ -921,7 +1016,8 @@ function analyse(dictee, biblio, opts) {
       const headBefore = /^(?:(?:et\s+)?(?:dans|pour|cote|en|au niveau de|concernant|partie)?\s*(?:la|le|les|l'|sa|son|ses|leur|un|une)?\s*|(?:r[ée]novation|r[ée]fection|refaire|r[ée]nover|faire|travaux\s+(?:dans|de))\s+(?:compl[eè]te(?:ment)?\s+)?(?:de\s+|d')?(?:la\s+|le\s+|l'|sa\s+|son\s+)?)$/.test(before + " ");
       const afterTk = tokens(after.replace(/^(?:\d\s+)?/, ""));
       const afterIsHead = !after || (roomsIn(after).length && afterTk.every(t => !ACTIONS.has(t)) && !hasQty(after)) || (!hasQty(after) && !afterTk.some(t => ACTIONS.has(t)) && afterTk.length <= 2 && !decide(matchTokens(index, afterTk)).ok);
-      if (headBefore && afterIsHead) {
+      const objetEntier = ROOM_AS_OBJECT.has(rm.base) && after && decide(matchTokens(index, tokens(raw))).ok;      // « WC suspendu » : prestation, pas un titre de pièce
+      if (headBefore && afterIsHead && !objetEntier) {
         headerRoom = rm.name; inlineRoom = null; if (/renovation/.test(before) && /appartement|maison|logement/.test(low(raw))) F.renov = true;
         continue;
       }
@@ -983,7 +1079,8 @@ function analyse(dictee, biblio, opts) {
     if (seg.ajout && !tk.some(t => ACTIONS.has(t))) tk.push("cre");
     const roomTok = new Set(); for (const r of roomsIn(desc)) if (lieu(r, desc)) for (const t of tokens(desc.slice(r.index, r.index + r.len))) roomTok.add(t);
     const isRoomObj = /^(?:pose|d[ée]pose|installation|montage)\s+(?:d'une?|de\s+la|du)\s+(?:cuisine|salle)/i.test(desc);
-    if (!isRoomObj) tk = tk.filter(t => !roomTok.has(t) || t === "sdb");
+    const sdbLieu = roomsIn(desc).some(r => /^Salle de (?:bains|douche)$/.test(r.base) && /dans\s+(?:la|le|les|l'|sa|leur)\s*$/i.test(desc.slice(0, r.index)));
+    if (!isRoomObj) tk = tk.filter(t => !roomTok.has(t) || (t === "sdb" && !sdbLieu));
     let acts = tk.filter(t => ACTIONS.has(t)), zones = [...new Set(tk.filter(t => ZONES.has(t)))], others = tk.filter(t => !ACTIONS.has(t) && !ZONES.has(t));
     const room = lineRoom || (!hardLead && !acts.length && inlineRoom) || headerRoom || (acts.length ? null : inlineRoom) || null;
     if (lineRoom) inlineRoom = lineRoom;
@@ -1055,7 +1152,10 @@ function analyse(dictee, biblio, opts) {
     let learned = false;
     if (Object.prototype.hasOwnProperty.call(appris, key)) { const id = appris[key]; if (id === null) { d = { best: null, ok: false, sure: false, conf: 0 }; learned = true; } else if (index.byId.has(id)) { const b = index.byId.get(id).b; d = { best: { b, score: 1, hits: 9, objHit: true }, ok: true, sure: true, conf: 1 }; learned = true; } }
     ligne.suggestions = ms.slice(0, 5).map(x => ({ id: x.b.id, designation: x.b.designation, pu: x.b.pu, unite: x.b.unite, score: x.score }));
-    if (d.ok && seg.intro && !d.sure && !learned && am.quantite === null && am.pu === null) continue;
+    if (d.ok && seg.intro && !learned && am.quantite === null && am.pu === null) {
+      const mine = new Set(tk.filter(t => !ACTIONS.has(t) && !ZONES.has(t)));
+      const suite = merged.slice(si + 1, si + 4).some(x => tokens(x.raw).some(t => mine.has(t)));
+      if (!d.sure || suite) continue; }
     if (d.ok) {
       const b = d.best.b; const std = ["m²", "ml", "m³", "h", "jour", "forfait", "u"];
       ligne.designation = b.designation; ligne.details = (b.details || []).slice(); ligne.biblio_id = b.id; ligne.confiance = d.conf; if (learned) ligne.appris = true;
