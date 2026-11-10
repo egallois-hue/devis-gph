@@ -719,7 +719,8 @@ async function buildPDF(d) {
     poly([[W - (big ? 230 : 170), 0], [W, 0], [W, h], [W - (big ? 150 : 135), h]], ROI_M);
     poly([[W - (big ? 95 : 70), 0], [W, 0], [W, h], [W - (big ? 25 : 40), h]], ROI_D);
   }
-  function logoCard(x, y, w, h) { fill([255, 255, 255]); doc.roundedRect(x, y, w, h, 8, 8, "F"); doc.addImage(window.GPH_LOGO, "JPEG", x + 6, y + 6, w - 12, h - 12); }
+  function logoCard(x, y, w, h) {      // bandeau bleu : maison en traits blancs, sans cadre, proportions conservées
+    const r = 600 / 386, iw = Math.min(w, h * r), ih = iw / r; doc.addImage(window.GPH_LOGO_BLANC || window.GPH_LOGO, "PNG", x + (w - iw) / 2, y + (h - ih) / 2, iw, ih); }
   function header1() {
     band(124, true);
     logoCard(M, 34, 84, 62);
