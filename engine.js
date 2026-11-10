@@ -147,12 +147,15 @@ const COMPOUNDS = [
   [/\bgrandes? hauteurs?\b/g, "grandehauteur"], [/\bplus[- ]values?\b/g, "plusvalue"], [/\bcages? d'? ?escaliers?\b/g, "escalier"], [/\bcoupe[- ]feu\b/g, "coupefeu"],
   [/\bbati[- ]supports?\b/g, "bati"], [/\bsiphons? de sol\b/g, "siphonsol"], [/\bparquets? flottants?\b/g, "parquet flottant"], [/\bsols? (?:souples?|pvc|vinyles?)\b/g, "vinyle"],
   [/\bfrais (?:de deplacements?|kilometriques?|de route)\b|\bindemnites? kilometriques?\b/g, "fraisdeplacement"], [/\ben regie\b|\bde regie\b/g, "regie maindoeuvre"],
+  [/\bportes?[- ]fenetres?\b/g, "xportefenetre"], [/\bportes? d'? ?entree\b/g, "xporteentree"], [/\bportes?[- ]serviettes?\b/g, "xporteserviette"], [/\bvolets? roulants?\b/g, "voletroulant"],
+  [/\bfenetres? de toit\b|\bvelux\b/g, "velux"], [/\bgarde[- ]corps\b/g, "gardecorps"], [/\bsous[- ]couches?\b/g, "souscouche"], [/\bchasses? d'? ?eau\b/g, "chasseeau"], [/\bpoints? d'? ?eau\b/g, "pointeau"],
+  [/\bcuisines? equipees?\b|\bmeubles? de cuisine\b/g, "cuisineequipee"], [/\bplans? vasques?\b/g, "planvasque"], [/\bva[- ]et[- ]vient\b/g, "vaetvient"], [/\bparties? communes?\b/g, "partiescommunes"],
   [/\ba la place de l'? ?ancien(?:ne)?\b/g, ""], [/\bw\.?-?c\.?\b|\btoilettes?\b/g, "wc"], 
 ];
 const STOP = new Set(("le la les l un une des du de d au aux a en et ou pour par sur sous avec dans on va il faut faire fait je nous vous y ce cet cette ces son sa ses leur leurs mon ma mes ton ta " +
   "qui que quoi est sont etre tout toute tous toutes plus aussi alors donc puis ensuite apres euh bon ben voila comme bien deja encore chaque environ lui me te se ca cela j ai c m t n s qu " +
   "font fais dois doit vais veux veut peu pres juste seulement uniquement meme niveau cote partie petit petite grand grande nouveau nouvel nouvelle ancien ancienne vieux vieille simple simples normal normale classique " +
-  "entier entiere neuf neuve premier premiere deuxieme second seconde troisieme quatrieme cinquieme dernier derniere autre autres chez moi toi avoir ete tres trop assez vers entre sans hors dont ou la-bas ici travaux appartement maison logement pavillon studio immeuble habitation domicile divers diverses").split(" "));
+  "entier entiere neuf neuve premier premiere deuxieme second seconde troisieme quatrieme cinquieme dernier derniere autre autres chez moi toi avoir ete tres trop assez vers entre sans hors dont ou la-bas ici travaux appartement maison logement pavillon studio immeuble habitation domicile divers diverses metro").split(" "));
 const UNITWORD = new Set(["m", "m2", "m3", "ml", "h", "u", "l", "cm", "mm", "kg", "km", "ht", "ttc", "eur", "euro", "euros"]);
 const SYN = {
   enlev: "depos", retir: "depos", arrach: "depos", vir: "depos", demont: "depos", deposs: "depos", decoll: "depos", detapiss: "depos papier", casse: "depos", cass: "depos", demol: "depos", abatt: "depos", supprim: "depos", oter: "depos",
@@ -163,7 +166,7 @@ const SYN = {
   joint: "jointoi", jointoi: "jointoi",
   install: "pos", mett: "pos", met: "pos", mis: "pos", pose: "pos", pos: "pos", poser: "pos", remett: "pos", remet: "pos", repos: "pos", fix: "pos", mont: "pos", rajout: "cre", ajout: "cre",
   remplac: "remplac", chang: "remplac",
-  cre: "cre", creat: "cre", creer: "cre", realis: "cre",
+  cre: "cre", cree: "cre", crees: "cre", creon: "cre", creat: "cre", creer: "cre", realis: "cre",
   refai: "refect", refect: "refect", refair: "refect", renov: "refect",
   repar: "repar", raccord: "raccord", branch: "raccord", control: "control", verifi: "control", resserr: "control", deplac: "deplac",
   cabinet: "wc", chiott: "wc",
@@ -180,7 +183,7 @@ const SYN = {
   ventil: "vmc", vmc: "vmc", aerat: "vmc",
   cloison: "cloison", doublage: "doublag", doublages: "doublag", doubler: "doublag", double: "double", doubles: "double", isol: "isol", travail: "maindoeuvre", boulot: "maindoeuvre",
   parquet: "parquet", stratifi: "parquet flottant", flott: "flottant", coll: "colle", massif: "colle", contrecoll: "colle",
-  moquett: "moquett", lino: "moquett", vinyl: "vinyle", pvc: "vinyle",
+  moquett: "moquett", lino: "vinyle", vinyl: "vinyle", pvc: "vinyle",
   porte: "port", huisseri: "port", fenetr: "fenetr", clotur: "clotur", grillag: "clotur", portail: "portillon", portillon: "portillon",
   ragre: "ragreag", ragr: "ragreag", rejointoy: "jointoi", lav: "nettoy", etanch: "etanch", hydro: "hydrofug", hydrofug: "hydrofug",
   plafond: "plafond", mur: "mur", murs: "mur", mural: "mur", murau: "mur", muret: "muret", meubl: "mobili", mobili: "mobili", radiateur: "radiateur", secheserviette: "secheserviette",
@@ -196,14 +199,17 @@ function stem1(w) {
   if (/ons$/.test(w) && w.length > 5) { const v = w.slice(0, -3); for (let k = Math.min(v.length, 12); k >= 3; k--) { const p = v.slice(0, k); if (SYN[p] && ACTIONS_SET.has(SYN[p].split(" ")[0])) return SYN[p]; } }      // « posons », « changeons »
   let s = w.replace(/(ements|ement|ations|ation|ages|age|ees|ee|es|er|ez|e|s|x)$/, "") || w;
   if (s.length < 3) s = w;
-  for (let k = Math.min(s.length, 12); k >= 3; k--) { const p = s.slice(0, k); if (SYN[p]) return SYN[p]; }
+  for (let k = Math.min(s.length, 12); k >= 3; k--) { if (k === 3 && s.length > 3) break; const p = s.slice(0, k); if (SYN[p]) return SYN[p]; }
   return s.length < 2 ? "" : s;
 }
 const ACTIONS_SET = new Set(["depos", "pos", "peintur", "poncag", "remplac", "nettoy", "demouss", "protect", "enduit", "vitrif", "jointoi", "ragreag", "etanch", "cre", "refect", "repar", "raccord", "control", "deplac", "coffr", "habill", "repris", "evacu", "lessiv", "isol"]);
 const ACTIONS = new Set(["depos", "pos", "peintur", "poncag", "remplac", "nettoy", "demouss", "protect", "enduit", "vitrif", "jointoi", "ragreag", "etanch", "cre", "refect", "repar", "raccord", "control", "deplac", "coffr", "habill", "repris", "evacu", "lessiv", "isol"]);
 const ACT_GROUP = { pos: 1, remplac: 1, raccord: 1, cre: 1, refect: 1, depos: 2, evacu: 2, peintur: 3, poncag: 4, vitrif: 4, nettoy: 5, demouss: 5, control: 5 };
 const ZONES = new Set(["mur", "plafond", "sol"]);
-const actCompat = (qa, da) => qa.some(a => da.has(a) || (ACT_GROUP[a] && [...da].some(b => ACT_GROUP[b] === ACT_GROUP[a])));
+const actCompat = (qa, da) => {
+  if (qa.includes("remplac") && !qa.includes("cre") && da.has("cre") && !da.has("remplac") && !da.has("pos")) return false;
+  if (qa.includes("cre") && !qa.includes("remplac") && !qa.includes("pos") && da.has("remplac") && !da.has("cre") && !da.has("pos")) return false;
+  return qa.some(a => da.has(a) || (ACT_GROUP[a] && [...da].some(b => ACT_GROUP[b] === ACT_GROUP[a]))); };
 function tokens(text) {
   let l = low(text).replace(/œ/g, "oe");
   for (const [re, rep] of COMPOUNDS) l = l.replace(re, " " + rep + " ");
@@ -356,11 +362,11 @@ const PARLE = {
   P054: ["plinthes", "pose de plinthes", "plinthes en bois", "plinthes MDF", "plinthes à poser", "poser les plinthes", "plinthes assorties au parquet"],
   P055: ["plomberie", "plomberie de la salle de bain", "plomberie complète", "refaire la plomberie de la salle d'eau", "plomberie de la douche"],
   P056: ["douche", "création d'une douche italienne", "faire une douche à l'italienne", "douche de plain-pied", "douche italienne à créer"],
-  P057: ["robinetterie", "pose de la robinetterie de douche", "pose de la colonne de douche", "pose du meuble vasque et de la paroi"],
+  P057: ["robinetterie", "pose de la robinetterie de douche", "pose du meuble vasque et de la paroi"],
   P058: ["suspendu", "pose d'un WC suspendu", "installer un WC suspendu", "remplacer le WC par un suspendu", "toilettes suspendues"],
   P059: ["wc", "remplacement du WC", "changer le WC", "changer les toilettes", "remplacer les toilettes", "pose d'un WC", "WC à changer", "toilettes à remplacer"],
   P060: ["lavabo", "pose d'un lavabo", "pose d'un meuble vasque", "installer un lavabo", "remplacement du lavabo", "changer le lavabo", "pose d'un lave-mains", "pose de la vasque"],
-  P061: ["mitigeur", "changer le robinet", "remplacer le mitigeur", "changement de robinet", "remplacement de la robinetterie", "robinet à changer", "mitigeur à remplacer", "changer le mitigeur"],
+  P061: ["mitigeur", "changer le robinet", "remplacer le mitigeur", "changement de robinet", "remplacement de la robinetterie", "robinet à changer", "mitigeur à remplacer", "changer le mitigeur", "pose d'un mitigeur", "pose d'un robinet", "installer un robinet", "nouveau robinet"],
   P062: ["baignoire", "paroi de baignoire", "pose d'un pare-baignoire", "paroi sur la baignoire", "écran de baignoire"],
   P063: ["baignoire", "refaire les joints de la baignoire", "joints silicone de la baignoire", "refaire le joint silicone", "joints de la douche à refaire", "étanchéité de la baignoire", "refaire les joints sanitaires"],
   P064: ["receveur", "préparation pour le receveur", "scellement du receveur", "préparer le support du bac à douche"],
@@ -938,9 +944,10 @@ function analyse(dictee, biblio, opts) {
     if (CHAT_DROP.test(Rr) || /^(?:dans|sur|pour)\s+ce\s/i.test(Rr)) return false;
     if (/^⟦/.test(Rr.trim()) || /⟦/.test(Lr) && !tokens(Lr.replace(/⟦[^⟧]*⟧/g, "")).length) return false;
     const L = sig(Lr), R = sig(Rr);
+    if (!L.tk.length) return false;
     if (!R.tk.length) return /\d/.test(Rr) && L.tk.length > 0 ? "qte" : false;
     if (!hl && L.acts.length && !L.others.length && !L.zones.length && R.acts.length) { const j = decide(matchTokens(index, L.tk.concat(R.tk))); if (j.ok) { const e = index.byId.get(j.best.b.id); if (L.acts.every(a => e.U.has(a)) && R.acts.some(a => e.U.has(a))) return true; } }
-    if (L.acts.includes("protect") && !R.acts.length && !hr && !hl) return true;
+    if (L.acts.includes("protect") && !hr && !hl && R.acts.every(a => a === "nettoy" || a === "evacu" || a === "protect") && R.others.every(t => t === "chanti" || t === "dechet" || t === "dechetteri" || t === "gravat" || t === "finchantier")) return true;
     if (!R.others.length && !R.acts.length) return !hl && L.zones.length > 0;                       // « murs » + « plafond »
     if (hl) return false;
     const ms = matchTokens(index, L.tk), d = decide(ms);
@@ -968,7 +975,7 @@ function analyse(dictee, biblio, opts) {
     if (whole.ok) { const e = index.byId.get(whole.best.b.id); if (!S0.others.some(t => !e.U.has(t))) return null; }
     const best = new Array(n + 1).fill(null); best[0] = { v: 0, parts: [] };
     for (let i = 1; i <= n; i++) for (let j = 0; j < i; j++) {
-      if (!best[j] || (j > 0 && NOSTART.test(words[j])) || NOEND.test(words[i - 1])) continue;
+      if (!best[j] || (j > 0 && (NOSTART.test(words[j]) || /^d'/i.test(words[j]))) || NOEND.test(words[i - 1])) continue;
       const txt = words.slice(j, i).join(" "), sg = sig(txt); if (!sg.tk.length) continue;
       const d = decide(matchTokens(index, sg.tk)); if (!d.ok || d.best.score < 0.7) continue;
       const e = index.byId.get(d.best.b.id); if (sg.others.some(t => !e.U.has(t))) continue;
@@ -1030,6 +1037,9 @@ function analyse(dictee, biblio, opts) {
       if (/^(?:non(?:\s+pardon|\s+non)?|pardon|finalement|en\s+fait|je\s+me\s+suis\s+tromp[ée]e?|je\s+me\s+trompe)$/i.test(raw)) { if (/non|pardon|tromp/i.test(raw)) corrAt = si; continue; }
       if (/^(?:non|pardon)\s+/i.test(raw)) corrAt = si - 1;
       raw = raw.replace(/^(?:(?:non|pardon|finalement|en\s+fait)\s+)+/i, ""); }
+    if (/^(?:mais\s+)?(?:[çc]a\s+|cela\s+)?(?:je|on)\s+(?:ne\s+|n')?(?:le\s+|la\s+|les\s+|y\s+)?(?:fais|fait|touche|prends|m'en\s+occupe)\s+pas(?:\s+[çc]a)?$/i.test(raw) || /^pas\s+(?:[çc]a|pour\s+moi)$/i.test(raw)) {
+      if (lastLine && lastLineSi >= si - 2) { for (const s2 of sections) { const k = s2.lignes.indexOf(lastLine); if (k >= 0) s2.lignes.splice(k, 1); } notes.push(`Ligne retirée (« ${raw} ») : « ${lastLine.designation.slice(0, 60)} ».`); lastLine = null; }
+      continue; }
     // faits seuls
     const facts = [...raw.matchAll(/⟦(sol|haut):([\d.]+)⟧/g)]; raw = raw.replace(/⟦[^⟧]*⟧/g, " ").replace(/\s{2,}/g, " ").trim();
     if (/^(?:devis|le devis|un devis)(?![\wà-ÿ])/i.test(raw) && raw.split(/\s+/).length <= 4) continue;
@@ -1118,6 +1128,7 @@ function analyse(dictee, biblio, opts) {
 
     /* ----- main-d'œuvre ----- */
     if (/(?<![\wà-ÿ])(?:en\s+plus|en\s+suppl[ée]ment|suppl[ée]mentaires?)(?![\wà-ÿ])/i.test(desc) && /\d|(?<![\wà-ÿ])une?(?![\wà-ÿ])/i.test(desc)) { desc = desc.replace(/(?<![\wà-ÿ])(?:en\s+plus|en\s+suppl[ée]ment|suppl[ée]mentaires?)(?![\wà-ÿ])/gi, " ").replace(/\s{2,}/g, " ").trim(); seg.ajout = true; }
+    { const r = desc.match(REL_RE); if (r && tokensLight(desc.slice(0, r.index))) desc = desc.slice(0, r.index).trim(); }
     let S = sig(desc); let tk = S.tk.slice();
     { const sc = sansComplement(desc); if (sc.txt !== desc) { const S2 = sig(sc.txt); if (S2.tk.length) { const dF = decide(matchTokens(index, S.tk)), dS = decide(matchTokens(index, S2.tk)); const s2 = new Set(S2.tk), eF = dF.ok && index.byId.get(dF.best.b.id), utile = dF.ok && S.tk.some(t => !s2.has(t) && eF.U.has(t)) && (!S2.others.length || S2.others.some(t => eF.U.has(t))); if (!utile && dS.ok && (!dF.ok || dS.best.score >= dF.best.score - 0.02) || (!dF.ok && !dS.ok && sc.txt.length < desc.length && /(?:qui|qu')\s/i.test(desc.slice(sc.txt.length)))) { S = S2; tk = S2.tk.slice(); ligne.lieu = sc.lieu; ligne.descUtile = sc.txt; } } } }
     if (seg.ajout && !tk.some(t => ACTIONS.has(t))) tk.push("cre");
@@ -1245,6 +1256,13 @@ function analyse(dictee, biblio, opts) {
     // carrelage : format, joints, pose
     const isPoseCarrelage = ligne.biblio_id ? (/carrelage|fa(?:i|ï)ence/i.test(ligne.designation) && /^pose/i.test(ligne.designation) && !/plinthe/i.test(ligne.designation)) : /^(?:pose|mise en (?:place|œuvre))(?![\wà-ÿ]).*(?:carrel|fa(?:i|ï)ence|mosa)/i.test(ligne.designation);
     if (isPoseCarrelage) { ligne.tile = { fmt: tile.fmt, tier: tile.tier, jointFin: tile.jointFin, epoxy: tile.epoxy, pose: tile.pose }; applyTile(ligne, ligne.tile, false); }
+    if (ligne.biblio_id && lastLine && lastLine.type === "mo" && lastLine.biblio_id && lastLine.biblio_id !== ligne.biblio_id && lastLineSi >= si - 1 && am.quantite === null && am.pu === null && !learned) {
+      const mainOf = e => [...e.D].filter(([t, w]) => w === 1 && t !== "seul" && t !== "pos").map(([t]) => t);
+      const eN = index.byId.get(ligne.biblio_id), eL = index.byId.get(lastLine.biblio_id), lm = eL ? mainOf(eL) : [], nm = new Set(eN ? mainOf(eN) : []);
+      if (lm.length && lm.every(t => nm.has(t)) && nm.size > new Set(lm).size && (eL.b.unite === eN.b.unite || lastLine.quantite === 1)) {
+        const b = eN.b; Object.assign(lastLine, { designation: b.designation, details: (b.details || []).slice(), biblio_id: b.id }); if (lastLine.source !== "dicte") { lastLine.pu = b.pu ?? null; lastLine.source = lastLine.pu === null ? "a_saisir" : "bibliotheque"; }
+        if (b.unite === "forfait" && (lastLine.quantite === null || lastLine.quantite === 1)) { lastLine.quantite = 1; lastLine.unite = "forfait"; }
+        lastLine.raw += " " + raw; lastLineSi = si; if (acts.length) lastAction = acts.find(a => a !== "refect") || acts[0]; continue; } }
     const sec = getSec(titre);
     // même prestation dictée deux fois
     if (ligne.biblio_id) {

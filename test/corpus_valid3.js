@@ -45,7 +45,7 @@ module.exports = [
 { id: "X11", set: "valid3",
   text: `alors pour monsieur Lacroix 12 rue Pasteur à Dourdan c'est juste une demi-journée je lui change deux robinets je débouche l'évier et je refais les joints de la baignoire`,
   client: { nom: "M. Lacroix", adr: "12 rue Pasteur", ville: "Dourdan" },
-  L: [["P061", 2, "u"], ["HC:évier", "*", "forfait"], ["P063", 1, "forfait"]] },
+  L: [["P061", 2, "u"], ["HC:évier|P299", "*", "forfait"], ["P063", 1, "forfait"]] },
 { id: "X12", set: "valid3",
   text: `madame Texier 3 rue du Lavoir à Roinville peinture complète de l'appartement les murs font cent dix mètres carrés les plafonds cinquante mètres carrés il y a six portes à peindre et protection des sols c'est un gros chantier`,
   client: { nom: "Mme Texier", adr: "3 rue du Lavoir", ville: "Roinville" },

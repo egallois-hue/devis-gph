@@ -17,7 +17,7 @@ module.exports = [
   text: `Devis pour Monsieur Henri Girard 9, rue de la gare à Forges les bains dans un premier temps pour une chambre Dépose du carrelage Pose d'un parquet flottant Sur 30 m² Deuxième prestation Dépose du papier peint des murs et peinture et enduit Sur la même pièce avec une hauteur sous plafond de 2,50 m Deuxième pièce salle de bain Dépose de la baignoire Et de l'évier Dépose de toute la faïence et du carrelage au sol Carrelage 60 60 avec joint fin au sol pause Et pose de carrelage au mur Sur toute la hauteur du mur qui fait 1 m 2,50 m La salle de bain fait 15 m² Pose d'un bac à douche 120 par 80 avec vitres coulissant Et robinetterie pose d'une double vasque plus robinet gré Plus miroir intégrée Création de cinq prises électriques un interrupteur Et cinq spots au plafond Début du chantier le 15 novembre Et la durée 20 jours`,
   client: { nom: "M. Henri Girard", adr: "9 rue de la Gare", ville: "Forges" }, duree: 20, debut: "2026-11-15",
   L: [["P010", 30, "m²"], ["P051", 30, "m²"], ["P009", 54.8, "m²"], ["P025", 54.8, "m²"], ["P012", 1, "forfait"], ["P010", 53.7, "m²"], ["P044", 15, "m²"], ["P044", 38.7, "m²"],
-      ["P064", 1, "forfait"], ["P057", 1, "forfait"], ["P060", 1, "u"], ["P069", 5, "u"], ["P068|P070", 1, "u"], ["P072", 5, "u"]] },
+      ["P064|P293", 1, "forfait"], ["P113", "*", "u", { opt: true }], ["P280", "*", "u", { opt: true }], ["P061", "*", "u", { opt: true }], ["P057", 1, "forfait"], ["P060", 1, "u"], ["P069", 5, "u"], ["P068|P070", 1, "u"], ["P072", 5, "u"]] },
 /* Cas de non-régression tirés des demandes réelles (format de carrelage dit avant la surface) */
 { id: "R01", set: "train",
   text: `Devis pour madame Martin 3 rue des Lilas à Dourdan. Cuisine : pose de carrelage soixante soixante avec joint fin 18 m2. Peinture des murs 30 m2 fournitures comprises.`,
@@ -103,7 +103,7 @@ module.exports = [
 { id: "A15", set: "train",
   text: `pour madame Blanc 7 place de la Mairie à Limours petite intervention deux heures de main-d'œuvre pour fixer des étagères et une tringle à rideaux`,
   client: { nom: "Mme Blanc", adr: "7 place de la Mairie", ville: "Limours" },
-  L: [["P090", 2, "h"]] },
+  L: [["P250", "*", "u", { opt: true }], ["P090", 2, "h"]] },
 
 { id: "A16", set: "train",
   text: `devis pour la copropriété du 22 rue de Paris à Palaiseau dans la cage d'escalier reprise des fissures 15 m toile de verre et peinture sur les murs 85 m² peinture du plafond 20 m² et plus-value grande hauteur sur 40 m²`,
@@ -113,7 +113,7 @@ module.exports = [
 { id: "A17", set: "train",
   text: `devis pour la société Dupuis Immobilier 3 avenue de la République à Massy local commercial TVA à 20 pour cent dépose du faux plafond 40 m² pose d'un faux plafond en placo 40 m² et 12 spots`,
   client: { nom: "Société Dupuis Immobilier", adr: "3 avenue de la République", ville: "Massy" }, tva: 20,
-  L: [["P015|HC:faux plafond", 40, "m²"], ["P040", 40, "m²"], ["P072", 12, "u"]] },
+  L: [["P015|HC:faux plafond|P104", 40, "m²"], ["P040", 40, "m²"], ["P072", 12, "u"]] },
 
 { id: "A18", set: "train",
   text: `monsieur et madame Lopez 9 rue des Acacias à Égly remplacement de la baignoire par une douche donc dépose de la baignoire et du meuble lavabo préparation du support pour le receveur pose de la robinetterie de la paroi et du meuble vasque et faïence 6 m²`,
@@ -178,7 +178,7 @@ module.exports = [
 { id: "A30", set: "train",
   text: `devis pour monsieur Fournier 6 rue des Roses à Ollainville pose d'une cuisine équipée pose du plan de travail 3 m et raccordement du lave-vaisselle`,
   client: { nom: "M. Fournier", adr: "6 rue des Roses", ville: "Ollainville" },
-  L: [["HC:cuisine", "*", "forfait"], ["HC:plan de travail", 3, "ml"], ["P067", 1, "u"]] },
+  L: [["HC:cuisine|P283", "*", "forfait"], ["HC:plan de travail|P284", 3, "ml"], ["P067", 1, "u"]] },
 
 { id: "A31", set: "train",
   text: `devis pour monsieur et madame Vincent 40 rue de Limours à Briis-sous-Forges rénovation complète de l'appartement protection et nettoyage peinture de tous les murs 180 m² et des plafonds 65 m² ponçage vitrification du parquet 50 m² ça va durer deux semaines`,
@@ -249,7 +249,7 @@ module.exports = [
 { id: "B04", set: "train",
   text: `pour madame Vidal 8 rue des Acacias à Orsay pose d'une crédence en verre dans la cuisine 3 m et remplacement de la hotte et aussi remplacer deux prises`,
   client: { nom: "Mme Vidal", adr: "8 rue des Acacias", ville: "Orsay" },
-  L: [["HC:crédence", 3, "ml"], ["HC:hotte", 1, "forfait"], ["P068", 2, "u"]] },
+  L: [["HC:crédence|P285", 3, "ml"], ["HC:hotte|P287", 1, "forfait"], ["P068", 2, "u"]] },
 
 { id: "B05", set: "train",
   text: `devis pour monsieur Chauvin douze rue des Écoles à Forges-les-Bains peinture des murs de la chambre trente-deux mètres carrés et du plafond douze mètres carrés virgule cinq et pose de trois luminaires`,
@@ -269,7 +269,7 @@ module.exports = [
 { id: "B08", set: "train",
   text: `devis pour monsieur Aubry 20 rue de la Mairie à Arpajon alors cuisine dépose du lino 12 m² pose de carrelage 12 m² format 30 30 peinture des murs 30 m² et du plafond 12 m² ensuite salon ponçage et vitrification du parquet 25 m² peinture des murs 55 m² et dans la salle de bain remplacement du lavabo et pose d'un miroir`,
   client: { nom: "M. Aubry", adr: "20 rue de la Mairie", ville: "Arpajon" },
-  L: [["P011", 12, "m²"], ["P044", 12, "m²"], ["P021", 30, "m²"], ["P022", 12, "m²"], ["P049", 25, "m²"], ["P021", 55, "m²"], ["P060", 1, "u"], ["HC:miroir", 1, "forfait"]] },
+  L: [["P011", 12, "m²"], ["P044", 12, "m²"], ["P021", 30, "m²"], ["P022", 12, "m²"], ["P049", 25, "m²"], ["P021", 55, "m²"], ["P060", 1, "u"], ["HC:miroir|P280", 1, "forfait"]] },
 
 { id: "B09", set: "train",
   text: `pour madame Hervé 2 rue des Sources à Saint-Chéron dans les WC dépose du papier peint 9 m² peinture murs et plafond 11 m² pose d'un lave-mains et il y a 40 € de frais de déplacement`,
@@ -315,7 +315,7 @@ module.exports = [
 { id: "B17", set: "train",
   text: `devis pour madame Perrot 22 rue du Parc à Chevreuse remplacement de 4 fenêtres pose de 4 volets roulants et peinture de 4 portes`,
   client: { nom: "Mme Perrot", adr: "22 rue du Parc", ville: "Chevreuse" },
-  L: [["P079", 4, "u"], ["HC:volets", 4, "u"], ["P028", 4, "u"]] },
+  L: [["P079", 4, "u"], ["HC:volets|P247", 4, "u"], ["P028", 4, "u"]] },
 
 { id: "B18", set: "train",
   text: `devis pour la société Bati Conseil 5 avenue de la Gare à Palaiseau locaux professionnels peinture des murs 200 m² peinture des plafonds 90 m² pose de sol PVC 90 m² fourniture comprise`,

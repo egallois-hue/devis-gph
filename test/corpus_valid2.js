@@ -15,7 +15,7 @@ module.exports = [
 { id: "W03", set: "valid2",
   text: `pour monsieur Diallo 8 rue Jean Jaurès à Arpajon dans la sale de bain dépose de la baignoire et du lavabo pause d'un receveur avec préparation du support faillance 12 mètres carrés et plaintes carrelées 6 mètres`,
   client: { nom: "M. Diallo", adr: "8 rue Jean Jaurès", ville: "Arpajon" },
-  L: [["P012", 1, "forfait"], ["P064", 1, "forfait"], ["P044", 12, "m²"], ["P047", 6, "ml"]] },
+  L: [["P012", 1, "forfait"], ["P064|P293", 1, "forfait"], ["P044", 12, "m²"], ["P047", 6, "ml"]] },
 
 { id: "W04", set: "valid2",
   text: `devis madame Roche 3 rue des Fauvettes à Dourdan peinture du salon murs 48 m² à 30 € le mètre carré plafond 22 m² à 35 € et deux portes à 110 € pièce`,
@@ -71,7 +71,7 @@ module.exports = [
 { id: "W14", set: "valid2",
   text: `madame Da Silva 12 rue du Moulin à Ollainville salle de bain remplacement de la baignoire par une baignoire neuve pose d'un pare-baignoire remplacement du mitigeur de la baignoire et joints silicone`,
   client: { nom: "Mme Da Silva", adr: "12 rue du Moulin", ville: "Ollainville" },
-  L: [["HC:baignoire", "*", "forfait"], ["P062", 1, "u"], ["P061", 1, "u"], ["P063", 1, "forfait"]] },
+  L: [["HC:baignoire|P292", "*", "forfait"], ["P062", 1, "u"], ["P061", 1, "u"], ["P063", 1, "forfait"]] },
 
 { id: "W15", set: "valid2",
   text: `pour monsieur Roger 40 rue Nationale à Dourdan électricité je crée quatre prises dans le salon deux points lumineux je pose six spots dans la cuisine et je déplace l'arrivée de la fibre`,
@@ -91,7 +91,7 @@ module.exports = [
 { id: "W18", set: "valid2",
   text: `madame Lemoine 27 rue de Versailles à Saint-Arnoult-en-Yvelines dépose de l'ancien WC et pose d'un WC neuf je raccorde aussi le lave-vaisselle et je change le siphon de l'évier`,
   client: { nom: "Mme Lemoine", adr: "27 rue de Versailles", ville: "Saint-Arnoult-en-Yvelines" },
-  L: [["P014", 1, "u", { opt: true }], ["P059", 1, "forfait"], ["P067", 1, "u"], ["HC:siphon", "*", "forfait"]] },
+  L: [["P014", 1, "u", { opt: true }], ["P059", 1, "forfait"], ["P067", 1, "u"], ["HC:siphon|P298", "*", "forfait"]] },
 
 { id: "W19", set: "valid2",
   text: `devis monsieur Perret 8 chemin des Sables à Vaugrigneuse pose d'un sol stratifié dans la chambre 14 m² fourni posé à 55 € le mètre carré dépose de la moquette 14 m² et plinthes 16 mètres fournitures comprises`,

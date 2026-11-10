@@ -52,7 +52,7 @@ module.exports = [
 { id: "V10", set: "valid",
   text: `madame Perrot 2 rue des Roses à Limours pose d'un velux dans les combles et peinture du plafond des combles 18 m²`,
   client: { nom: "Mme Perrot", adr: "2 rue des Roses", ville: "Limours" },
-  L: [["HC:velux", "*", "u"], ["P022", 18, "m²"]] },
+  L: [["HC:velux|P246", "*", "u"], ["P022", 18, "m²"]] },
 
 { id: "V11", set: "valid",
   text: `chez monsieur et madame Julien 44 rue de Chartres à Dourdan on refait la salle d'eau donc dépose du bac à douche et de la paroi dépose du carrelage au mur 14 m² ensuite étanchéité sous carrelage sur 14 m² repose de faïence 14 m² en 30 60 pose de la robinetterie de la paroi et du meuble vasque et un sèche-serviettes électrique à poser`,

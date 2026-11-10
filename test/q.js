@@ -1,6 +1,6 @@
 // Essai rapide : node test/q.js "texte dicté"  (affiche segments, lignes, notes)
 const M = require("../engine.js"), fs = require("fs"), path = require("path");
-const CAT = process.env.GPH_CATALOGUE || path.join(__dirname, "../../devis_src/catalogue_seed.json");
+const CAT = process.env.GPH_CATALOGUE || path.join(__dirname, "../../cat/catalogue_prestations.json");
 const biblio = JSON.parse(fs.readFileSync(CAT, "utf8"));
 for (const text of process.argv.slice(2)) {
   const r = M.analyse(text, biblio);

@@ -5,7 +5,7 @@ const fs = require("fs"), path = require("path");
 const args = process.argv.slice(2);
 const opt = k => { const i = args.indexOf("--" + k); return i >= 0 ? (args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : true) : null; };
 const SET = opt("set") || "train", DETAIL = !!opt("detail"), ENGINE = path.resolve(opt("engine") || path.join(__dirname, "../engine.js"));
-const CAT = process.env.GPH_CATALOGUE || path.join(__dirname, "../../devis_src/catalogue_seed.json");
+const CAT = process.env.GPH_CATALOGUE || path.join(__dirname, "../../cat/catalogue_prestations.json");
 if (!fs.existsSync(CAT)) { console.error("Catalogue introuvable : définissez GPH_CATALOGUE=/chemin/catalogue_prestations.json"); process.exit(2); }
 const M = require(ENGINE), biblio = JSON.parse(fs.readFileSync(CAT, "utf8")), corpus = require("./corpus.js");
 const byId = new Map(biblio.map(b => [b.id, b]));
@@ -14,7 +14,7 @@ const near = (a, b) => a !== null && a !== undefined && Math.abs(Number(a) - Num
 const sameUnit = (a, b, q) => a === b || (Number(q) === 1 && ["u", "forfait"].includes(a) && ["u", "forfait"].includes(b));
 
 // vérifie les identifiants du corpus
-for (const c of corpus) for (const g of c.L) for (const alt of String(g[0]).split("|")) if (!alt.startsWith("HC:") && !byId.has(alt)) { console.error("Identifiant inconnu dans le corpus :", c.id, alt); process.exit(2); }
+for (const c of corpus) for (const g of c.L) { const alts = String(g[0]).split("|"); if (!(g[3] && g[3].opt) && !alts.some(alt => alt.startsWith("HC:") || byId.has(alt))) { console.error("Identifiant inconnu dans le corpus :", c.id, g[0]); process.exit(2); } }      // les variantes propres au catalogue enrichi sont ignorées avec un catalogue plus court
 
 function evalCase(c) {
   const t0 = process.hrtime.bigint();

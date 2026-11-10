@@ -1,6 +1,6 @@
 // Débogage : node test/dbg.js A10 [A17 …]  ou  node test/dbg.js "texte dicté"
 const M = require("../engine.js"), fs = require("fs"), path = require("path");
-const CAT = process.env.GPH_CATALOGUE || path.join(__dirname, "../../devis_src/catalogue_seed.json");
+const CAT = process.env.GPH_CATALOGUE || path.join(__dirname, "../../cat/catalogue_prestations.json");
 const biblio = JSON.parse(fs.readFileSync(CAT, "utf8")), corpus = require("./corpus.js");
 for (const a of process.argv.slice(2)) {
   const c = corpus.find(x => x.id === a); if (c && c.set === "test" && !process.env.GPH_VOIR_TEST) { console.log(a, ": jeu de test, non affiché"); continue; }
