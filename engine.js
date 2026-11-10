@@ -1180,7 +1180,7 @@ function analyse(dictee, biblio, opts) {
         else made.push(mk(zs[0] === "plafond" ? "peinture des plafonds" : "peinture des murs", qM));
       } else if (fx && fx.sol && !paintDone.has(titre) && !(fx._fait && !room)) {
         const h = fx.haut || 2.5, murs = Math.round(4 * Math.sqrt(fx.sol) * h * 10) / 10;
-        if (!zs.length || zs.includes("mur")) { const a = mk("peinture des murs", murs, { estime: true, estimeInfo: { sol: fx.sol, hauteur: h } }); if (a) { a.details = a.details.concat([`Surface estimée : pièce de ${fr(fx.sol)} m² au sol, hauteur ${fr(h)} m (à vérifier, ouvertures non déduites)`]); made.push(a); notes.push(`Peinture : ${fr(murs)} m² de murs calculés pour une pièce carrée de ${fr(fx.sol)} m² au sol et ${fr(h)} m de hauteur. Mesurez sur place et corrigez si besoin.`); if (fx.haut && fx.haut < 2.2) notes.push(`Hauteur sous plafond de ${fr(fx.haut)} m : inhabituelle, vérifiez la dictée.`); } }
+        if (!zs.length || zs.includes("mur")) { const a = mk("peinture des murs", murs, { estime: true, estimeInfo: { sol: fx.sol, hauteur: h, murs, plus: 0 } }); if (a) { a.details = a.details.concat([`Surface estimée : pièce de ${fr(fx.sol)} m² au sol, hauteur ${fr(h)} m (à vérifier, ouvertures non déduites)`]); made.push(a); notes.push(`Peinture : ${fr(murs)} m² de murs calculés pour une pièce carrée de ${fr(fx.sol)} m² au sol et ${fr(h)} m de hauteur. Mesurez sur place et corrigez si besoin.`); if (fx.haut && fx.haut < 2.2) notes.push(`Hauteur sous plafond de ${fr(fx.haut)} m : inhabituelle, vérifiez la dictée.`); } }
         if (!zs.length || zs.includes("plafond")) made.push(mk("peinture des plafonds", fx.sol));
         paintDone.add(titre); fx._fait = true;
       } else if (fx && fx.sol && (paintDone.has(titre) || (fx._fait && !room))) { continue; }
@@ -1318,7 +1318,7 @@ function analyse(dictee, biblio, opts) {
       for (const l of sec.lignes) { if (l.type !== "mo" || l.unite !== "m²" || l.quantite !== null) continue; const z = zoneDe(l); if (!z) continue;
         if (sec.titre === "Travaux" && deduit && z !== "sol") continue;       // sans pièce nommée : seules les lignes de sol reprennent la surface
         if (z === "sol" || z === "plafond") { l.quantite = sol; l.details = (l.details || []).concat([`Surface ${z === "sol" ? "au sol" : "du plafond"} : ${fr(sol)} m²`]); nS++; }
-        else { l.quantite = r2(murs + (z === "mur" ? 0 : sol)); l.estime = true; l.estimeInfo = { sol, hauteur: h }; l.details = (l.details || []).concat([`Surface estimée : pièce de ${fr(sol)} m² au sol, hauteur ${fr(h)} m (à vérifier, ouvertures non déduites)`]); nM++; } }
+        else { l.quantite = r2(murs + (z === "mur" ? 0 : sol)); l.estime = true; l.estimeInfo = { sol, hauteur: h, murs, plus: z === "mur" ? 0 : sol }; l.details = (l.details || []).concat([`Surface estimée : pièce de ${fr(sol)} m² au sol, hauteur ${fr(h)} m (à vérifier, ouvertures non déduites)`]); nM++; } }
       if (nM) notes.push(`${sec.titre} : ${fr(murs)} m² de murs calculés pour une pièce carrée de ${fr(sol)} m² au sol et ${fr(h)} m de hauteur${fx.haut ? "" : " (hauteur supposée)"}. Mesurez sur place et corrigez si besoin.`);
       if (nS && deduit) notes.push(`${sec.titre} : ${fr(sol)} m² au sol repris pour les lignes sans surface.`); } }
   // format de carrelage dit une seule fois : vaut pour les autres lignes de pose
