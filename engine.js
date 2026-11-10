@@ -155,7 +155,7 @@ const STOP = new Set(("le la les l un une des du de d au aux a en et ou pour par
 const UNITWORD = new Set(["m", "m2", "m3", "ml", "h", "u", "l", "cm", "mm", "kg", "km", "ht", "ttc", "eur", "euro", "euros"]);
 const SYN = {
   enlev: "depos", retir: "depos", arrach: "depos", vir: "depos", demont: "depos", deposs: "depos", decoll: "depos", detapiss: "depos papier", casse: "depos", cass: "depos", demol: "depos", abatt: "depos", supprim: "depos", oter: "depos",
-  peindr: "peintur", peint: "peintur", repeindr: "peintur", repeint: "peintur", peinturag: "peintur", laqu: "peintur", laque: "peintur", laquer: "peintur", laquee: "peintur",
+  peindr: "peintur", peint: "peintur", pein: "peintur", repeindr: "peintur", repeint: "peintur", repein: "peintur", lasur: "peintur", peinturag: "peintur", laqu: "peintur", laque: "peintur", laquer: "peintur", laquee: "peintur",
   carrel: "carrelag", faienc: "carrelag", carreau: "carrelag", mosaiqu: "carrelag", gres: "carrelag",
   placo: "ba13", placoplatr: "ba13", plaqu: "ba13", ba13: "ba13",
   ponc: "poncag", vitrifi: "vitrif", vitrific: "vitrif", vernis: "vitrif", vernir: "vitrif",
@@ -172,7 +172,7 @@ const SYN = {
   nettoy: "nettoy", nettoi: "nettoy", demouss: "demouss", lessiv: "lessiv",
   dechet: "dechet", gravat: "gravat", gravoi: "gravat", gravas: "gravat", decheteri: "dechetteri", dechetteri: "dechetteri", evacu: "evacu",
   protect: "protect", proteg: "protect", bach: "protect",
-  enduit: "enduit", enduir: "enduit", ratiss: "enduit", lissag: "enduit",
+  enduit: "enduit", enduir: "enduit", endui: "enduit", ratiss: "enduit", lissag: "enduit", liss: "enduit",
   fissur: "fissur", rebouch: "fissur",
   lumier: "lumin", luminair: "lumin", lustr: "lumin", appliqu: "lumin", eclairag: "lumin", plafonni: "lumin", eclair: "lumin",
   spot: "spot", prise: "pris", pris: "pris", interrupteur: "interrupt",
@@ -181,7 +181,7 @@ const SYN = {
   parquet: "parquet", stratifi: "parquet flottant", flott: "flottant", coll: "colle", massif: "colle", contrecoll: "colle",
   moquett: "moquett", lino: "moquett", vinyl: "vinyle", pvc: "vinyle",
   porte: "port", huisseri: "port", fenetr: "fenetr", clotur: "clotur", grillag: "clotur", portail: "portillon", portillon: "portillon",
-  ragre: "ragreag", etanch: "etanch", hydro: "hydrofug", hydrofug: "hydrofug",
+  ragre: "ragreag", ragr: "ragreag", rejointoy: "jointoi", lav: "nettoy", etanch: "etanch", hydro: "hydrofug", hydrofug: "hydrofug",
   plafond: "plafond", mur: "mur", murs: "mur", mural: "mur", murau: "mur", muret: "muret", meubl: "mobili", mobili: "mobili", radiateur: "radiateur", secheserviette: "secheserviette",
   mitigeur: "mitigeur", robinet: "mitigeur", robinetteri: "robinetteri",
   machinelaver: "machine", fibr: "fibr", box: "fibr", tableau: "tableau", disjoncteur: "tableau",
@@ -192,11 +192,13 @@ function stem1(w) {
   if (!w || UNITWORD.has(w)) return "";
   if (/^\d/.test(w)) return w === "13" ? "ba13" : "";
   if (SYN[w]) return SYN[w];
+  if (/ons$/.test(w) && w.length > 5) { const v = w.slice(0, -3); for (let k = Math.min(v.length, 12); k >= 3; k--) { const p = v.slice(0, k); if (SYN[p] && ACTIONS_SET.has(SYN[p].split(" ")[0])) return SYN[p]; } }      // « posons », « changeons »
   let s = w.replace(/(ements|ement|ations|ation|ages|age|ees|ee|es|er|ez|e|s|x)$/, "") || w;
   if (s.length < 3) s = w;
   for (let k = Math.min(s.length, 12); k >= 3; k--) { const p = s.slice(0, k); if (SYN[p]) return SYN[p]; }
   return s.length < 2 ? "" : s;
 }
+const ACTIONS_SET = new Set(["depos", "pos", "peintur", "poncag", "remplac", "nettoy", "demouss", "protect", "enduit", "vitrif", "jointoi", "ragreag", "etanch", "cre", "refect", "repar", "raccord", "control", "deplac", "coffr", "habill", "repris", "evacu", "lessiv", "isol"]);
 const ACTIONS = new Set(["depos", "pos", "peintur", "poncag", "remplac", "nettoy", "demouss", "protect", "enduit", "vitrif", "jointoi", "ragreag", "etanch", "cre", "refect", "repar", "raccord", "control", "deplac", "coffr", "habill", "repris", "evacu", "lessiv", "isol"]);
 const ACT_GROUP = { pos: 1, remplac: 1, raccord: 1, cre: 1, refect: 1, depos: 2, evacu: 2, peintur: 3, poncag: 4, vitrif: 4, nettoy: 5, demouss: 5, control: 5 };
 const ZONES = new Set(["mur", "plafond", "sol"]);
@@ -672,6 +674,7 @@ const SOFT = new Set(["et", "avec", "plus"]);
 const LEADW = new Set(["faut", "faudra", "dois", "doit", "vais", "va", "veux", "veut", "voudrais", "compte", "pense", "lui", "leur", "aussi", "y", "a", "ai", "ne", "n'", "te", "me", "se", "en", "que", "refais", "fais"]);
 const GOVERN = new Set(["de", "d'", "du", "des", "en", "a", "pour", "sans", "par", "sur", "sous", "dans", "au", "aux", "le", "la", "les", "l'", "un", "une", "d'un", "d'une", "que", "qu'", "chez", "ou", "son", "sa", "ses", "mon", "ma", "mes", "ce", "cette", "ces", "leur", "leurs", "tout", "toute", "tous", "toutes", "juste", "seulement", "petit", "petite", "grand", "grande", "nouveau", "nouvelle", "ancien", "ancienne", "lui", "leur", "y", "en", "bien", "aussi", "comme", "fourniture", "fournitures", "prends", "prend", "prendre", "pris", "meme"]);
 const ACT_WORD = /^(?:d[ée]pos(?:e|er|é|ée|és|ées|ons|ez)?|enl[eè]v\w*|retir\w*|arrach\w*|pos(?:e|er|é|ée|és|ées|ons|ez)|install\w*|mettre|mets?|remettre|remet|peindre|peint|peinture|repeindre|repeint|ponc\w*|pon[cç]age|rebouch\w*|lessiv\w*|nettoy\w*|nettoie|d[ée]mouss\w*|remplac\w*|chang(?:e|er|é|ement|ements|eons)|raccord(?:e|er|é|ement|ements)|cr[ée]er|cr[ée]e|cr[ée]ation|r[ée]alis\w*|repr(?:endre|end|ise|ises)|vitrifi\w*|carreler|carrell?e|carrel[ée]|endui(?:re|t|ts|s)|ratiss\w*|isol(?:er|e|é|ation)|d[ée]mol\w*|cass(?:e|er|é|ons)|[ée]vacu\w*|prot[ée]g\w*|prot[eè]ge|protection|contr[oô]l\w*|v[ée]rifi\w*|r[ée]par\w*|d[ée]plac\w*|scell\w*|ragr[ée]\w*|perc(?:e|er|é)|habill\w*|coffr\w*|doubl(?:age|er)|d[ée]tapiss\w*|refai(?:re|s|t)|r[ée]fection|fix(?:e|er|é|ation)|mont(?:e|er|é|age)|ajout\w*|rajout\w*|r[ée]gl(?:e|er|é|age)|laqu(?:e|er|é)|[ée]tanch[ée]it[ée]|[ée]lectricit[ée]|plomberie|ouv(?:rir|erture)|pr[ée]par(?:er|e|é|ation)|d[ée]molition|r[ée]novation|fissures?|ragr[ée]age|d[ée]tapisser)$/i;
+const NOM_METIER = /^(?:carrelage|fa[iï]ence)$/i;       // ouvre une prestation seulement après un élément déjà complet (« un sèche-serviettes | carrelage au sol »)
 const isNumTok = t => /^\d+(?:[.,]\d+)?$/.test(t.l);
 const UNIT_TOK = new Set(["m²", "m³", "ml", "m", "h", "heure", "heures", "jour", "jours", "journee", "journees", "semaine", "semaines", "forfait", "forfaits", "sac", "sacs", "pot", "pots", "boite", "boites", "carton", "cartons", "rouleau", "rouleaux", "seau", "seaux", "cartouche", "cartouches", "bidon", "bidons", "panneau", "panneaux", "lot", "lots"]);
 const SPEC_TOK = new Set(["l", "cm", "mm", "kg", "km", "w", "watts", "%", "couches", "couche"]);
@@ -694,7 +697,7 @@ function segmenter(body) {
   const flush = next => { if (cur.length) { segs.push({ raw: cur.map(t => t.w).join(" "), lead, fournCue: fournNext }); fournNext = false; } cur = []; lead = cur.length ? lead : (segs.length && !next ? lead : next || lead); lead = next || lead; pend = false; postInf = false; };
   const L = i => (T[i] ? T[i].l : "");
   const seq = (i, arr) => arr.every((w, k) => L(i + k) === w);
-  const isCountStart = i => (isNumTok(T[i]) || /^une?$/.test(L(i))) && T[i + 1] && /^[a-zà-ÿ'-]{3,}$/.test(T[i + 1].l) && !UNIT_TOK.has(L(i + 1)) && !SPEC_TOK.has(L(i + 1)) && !isNumTok(T[i + 1]) && L(i + 1) !== "par" && L(i + 1) !== "sur" && L(i + 1) !== "fois";
+  const isCountStart = i => (isNumTok(T[i]) || /^une?$/.test(L(i))) && T[i + 1] && /^(?:[a-zà-ÿ'-]{3,}|wc)$/.test(T[i + 1].l) && !UNIT_TOK.has(L(i + 1)) && !SPEC_TOK.has(L(i + 1)) && !isNumTok(T[i + 1]) && L(i + 1) !== "par" && L(i + 1) !== "sur" && L(i + 1) !== "fois";
   const priceAt = i => {       // (à|pour|soit)? N € (ht)? ((du|le|par|au|la|l') unité)?
     let j = i; if (/^(?:a|pour|soit)$/.test(L(j)) && isNumTok(T[j + 1] || { l: "" }) && L(j + 2) === "€") j++;
     if (!(T[j] && isNumTok(T[j]) && L(j + 1) === "€")) return 0;
@@ -790,6 +793,7 @@ function segmenter(body) {
     { const n = priceAt(i); if (n && cur.length) { push(n); if (cur.length) pend = true; continue; } }
     // nouveau décompte : « … | 3 fenêtres », « … | un radiateur »
     if (cur.length && !onlyLead && isCountStart(i) && !(GOVERN.has(prev) || (ACT_WORD.test(prev) && !postInf) || isNumTok(cur[cur.length - 1]) || /^chambres?/.test(prev))) flush("juxt");
+    if (NOM_METIER.test(l) && cur.length >= 2 && !GOVERN.has(prev) && !/^(?:l'|d')/.test(prev) && cur.some((x, k) => (isNumTok(x) || /^une?$/.test(x.l)) && cur[k + 1] && !UNIT_TOK.has(cur[k + 1].l))) flush("juxt");
     // nouveau mot d'action
     if (ACT_WORD.test(l)) {
       const inf = prev === "a" || prev === "à";
@@ -894,6 +898,7 @@ function analyse(dictee, biblio, opts) {
   function canMerge(Lr, Rr) {
     const hl = hasQty(Lr), hr = hasQty(Rr);
     if (hl && hr) return false;
+    if (/(?<![\d,.])\d{1,3}\s+[a-zà-ÿ-]{3,}/i.test(Lr) && /^(?:d')?une?\s+[a-zà-ÿ-]{3,}/i.test(Rr.trim())) return false;      // « 2 prises et d'un interrupteur »
     if (hr && /(?<![\d,.])\d{1,3}\s+[a-zà-ÿ-]{3,}/i.test(Rr) && /(?:^|\s)une?\s+[a-zà-ÿ-]{3,}/i.test(Lr)) return false;      // « une porte double … et 3 portes simples »
     if (CHAT_DROP.test(Rr) || /^(?:dans|sur|pour)\s+ce\s/i.test(Rr)) return false;
     if (/^⟦/.test(Rr.trim()) || /⟦/.test(Lr) && !tokens(Lr.replace(/⟦[^⟧]*⟧/g, "")).length) return false;
@@ -1009,11 +1014,13 @@ function analyse(dictee, biblio, opts) {
         const suite = rm ? same[1].slice(rm.index + rm.len).trim() : "";
         if (rm && suite && hasQty(suite)) { headerRoom = rm.name; inlineRoom = null; raw = suite; seg.suiteDe = true; }
         else if (rm && src && roomLines[src] && roomLines[src].length) { for (const l of roomLines[src].slice()) addLine(cloneLine(l, { raw: raw }), rm.name); headerRoom = rm.name; inlineRoom = null; notes.push(`« ${raw} » : les lignes de « ${src} » ont été reprises pour « ${rm.name} ». Vérifiez les quantités.`); continue; } } }
+    { const same2 = raw.match(/^(.+?)\s+(?:c'est\s+)?(?:pareil|idem|la\s+m[eê]me\s+chose|m[eê]me\s+chose|m[eê]mes\s+travaux)$/i), rm = same2 && roomOf(same2[1]), src = headerRoom || inlineRoom;
+      if (rm && !hasQty(same2[1]) && src && src !== rm.name && roomLines[src] && roomLines[src].length) { for (const l of roomLines[src].slice()) addLine(cloneLine(l, { raw }), rm.name); headerRoom = rm.name; inlineRoom = null; notes.push(`« ${raw} » : les lignes de « ${src} » ont été reprises pour « ${rm.name} ». Vérifiez les quantités.`); continue; } }
     // en-tête de pièce (« dans la chambre 1 », « salle de bain », « rénovation complète de la salle de bain »)
     const rms = roomsIn(raw);
     if (rms.length && !isFourn) {
       const rm = rms[0], before = low(raw.slice(0, rm.index)).trim(), after = raw.slice(rm.index + rm.len).trim();
-      const headBefore = /^(?:(?:et\s+)?(?:dans|pour|cote|en|au niveau de|concernant|partie)?\s*(?:la|le|les|l'|sa|son|ses|leur|un|une)?\s*|(?:r[ée]novation|r[ée]fection|refaire|r[ée]nover|faire|travaux\s+(?:dans|de))\s+(?:compl[eè]te(?:ment)?\s+)?(?:de\s+|d')?(?:la\s+|le\s+|l'|sa\s+|son\s+)?)$/.test(before + " ");
+      const headBefore = /^(?:(?:et\s+)?(?:dans|pour|cote|en|au niveau de|concernant|partie)?\s*(?:la|le|les|l'|sa|son|ses|leur|un|une)?\s*|(?:r[ée]novation|r[ée]fection|refai(?:re|s|t|sons)|refont|r[ée]nov(?:er|e|ons|ent)|fai(?:re|s|t|sons)|travaux\s+(?:dans|de))\s+(?:compl[eè]te(?:ment)?\s+|entierement\s+)?(?:de\s+|d')?(?:toute?s?\s+)?(?:la\s+|le\s+|les\s+|l'|sa\s+|son\s+|leur\s+)?)$/.test(before + " ");
       const afterTk = tokens(after.replace(/^(?:\d\s+)?/, ""));
       const afterIsHead = !after || (roomsIn(after).length && afterTk.every(t => !ACTIONS.has(t)) && !hasQty(after)) || (!hasQty(after) && !afterTk.some(t => ACTIONS.has(t)) && afterTk.length <= 2 && !decide(matchTokens(index, afterTk)).ok);
       const objetEntier = ROOM_AS_OBJECT.has(rm.base) && after && decide(matchTokens(index, tokens(raw))).ok;      // « WC suspendu » : prestation, pas un titre de pièce
@@ -1058,6 +1065,7 @@ function analyse(dictee, biblio, opts) {
       // quantité seule : même prestation que la ligne précédente (« la deuxième 28 m² »)
       if (!isFourn && lastFrame && lastFrame.line && am.quantite !== null && am.unite && am.unite === lastFrame.line.unite && lastFrame.line.quantite === null) { lastFrame.line.quantite = am.quantite; if (am.pu !== null) { lastFrame.line.pu = am.pu; lastFrame.line.source = "dicte"; } lastFrame.line.raw += " " + raw; delete lastFrame.line._implicit; continue; }
       if (!isFourn && lastFrame && lastFrame.line && am.quantite !== null && am.unite && am.unite === lastFrame.line.unite && am.pu === null) { addLine(cloneLine(lastFrame.line, { quantite: am.quantite, raw, estime: false }), lastFrame.titre); continue; }
+      { const seul = raw.match(/^(\d{1,3})$/); if (!isFourn && seul && lastLine && lastLine.type === "mo" && (lastLine.unite === "u" || lastLine._implicit) && (lastLine._implicit || lastLine.quantite === null || lastLine.quantite === 1)) { lastLine.quantite = Number(seul[1]); if (lastLine.unite === "forfait") lastLine.unite = "u"; lastLine.raw += " " + raw; delete lastLine._implicit; continue; } }
       if (am.pu !== null || am.quantite !== null) notes.push(`Montant sans description ignoré : « ${raw} »`); continue; }
     const ligne = { type: isFourn ? "fourniture" : "mo", designation: "", details: [], quantite: am.quantite, unite: am.unite, pu: null, source: "a_saisir", biblio_id: null, raw, suggestions: [] };
 
@@ -1086,6 +1094,7 @@ function analyse(dictee, biblio, opts) {
     if (lineRoom) inlineRoom = lineRoom;
     const titre = room || "Travaux";
     const humid = HUMID.has(baseOf(room)) || tk.includes("sdb") || (tk.includes("wc") && (acts.includes("peintur") || lastAction === "peintur") && !acts.some(a => ACT_GROUP[a] === 1 || a === "depos"));
+    if (am.quantite === null && am.pu === null && /^(?:(?:la|l'|le|les|c[oô]t[ée]|partie|pour|en|niveau)\s*)*(?:[ée]lectricit[ée]|plomberie|peinture|carrelage|menuiserie|ma[cç]onnerie|pl[aâ]trerie|sanitaires?|sols?|ext[ée]rieur|int[ée]rieur)\s*:?$/i.test(desc)) continue;
     // bavardage : rien d'exploitable
     if (!tk.length) { if (facts.length || (roomsIn(raw).length && !hasQty(raw))) { if (roomsIn(raw).length && !headerRoom) headerRoom = roomsIn(raw)[0].name; continue; } if (am.quantite !== null && lastFrame && lastFrame.line && am.unite === lastFrame.line.unite && !am.compte) { addLine(cloneLine(lastFrame.line, { quantite: am.quantite, raw, estime: false }), room || lastFrame.titre); continue; } continue; }
     // complément de lieu de la ligne précédente (« … sur la clôture ») : pas une prestation
