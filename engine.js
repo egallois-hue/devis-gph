@@ -341,7 +341,7 @@ function conversation(body) {
 /* ---------- Analyse complète ---------- */
 function analyse(dictee, biblio, opts = {}) {
   const today = opts.today || new Date();
-  const text = convertNumbers(String(dictee || ""));
+  const text = convertNumbers(String(dictee || "").replace(/\b([a-zà-ÿ]+)(\s+\1\b)+/gi, "$1"));
   const index = buildIndex(biblio || []);
   const { client, consumed } = extractClient(text);
   let body = text; for (const c of consumed) body = body.replace(c, " ");
