@@ -54,6 +54,11 @@ const S = {
 /* ===================== Numérotation (exercice 1er oct → 30 sept) ===================== */
 function exerciceKey(iso) { const [y, m] = iso.split("-").map(Number); return String(m >= 10 ? y : y - 1); }
 function exerciceLabel(k) { return `${k}-${Number(k) + 1}`; }
+/* Suivi d'un devis émis */
+const ETATS = [["attente", "En attente", "grey"], ["envoye", "Envoyé", "b"], ["accepte", "Accepté", "g"], ["en_cours", "Chantier en cours", "w"], ["fini_paye", "Fini et payé", "ok"]];
+const ETAT_FICHIER = { attente: "EN-ATTENTE", envoye: "ENVOYE", accepte: "ACCEPTE", en_cours: "CHANTIER-EN-COURS", fini_paye: "FINI-ET-PAYE" };
+function etatOf(d) { return d.statut === "finalise" ? (d.etat || "attente") : null; }
+function etatPill(d) { const e = etatOf(d); if (!e) return `<span class="pill grey">${d.importe ? "Importé · à vérifier" : "Brouillon"}</span>`; const x = ETATS.find(z => z[0] === e) || ETATS[0]; return `<span class="pill ${x[2]}">${x[1]}</span>`; }
 function nextNumero(iso) {
   const k = exerciceKey(iso);
   let max = Number((S.cfg.compteurs || {})[k] || 0);
@@ -260,7 +265,12 @@ function statusBanner() {
 /* ===================== Vue : liste ===================== */
 function viewList() {
   const q = norm(S.q || "");
-  const rows = S.devis.filter(d => !q || norm([d.numero, d.client?.nom, d.client?.ville, d.objet].join(" ")).includes(q));
+  const rows = S.devis.filter(d => !q || norm([d.numero, d.client?.nom, d.client?.cpVille, d.objet].join(" ")).includes(q))
+    .filter(d => !S.fe || (S.fe === "brouillon" ? d.statut !== "finalise" : etatOf(d) === S.fe))
+    .sort((a, b) => String(b.numero || "~").localeCompare(String(a.numero || "~")) || (b.updatedAt || 0) - (a.updatedAt || 0));
+  const cnt = e => S.devis.filter(d => e === "brouillon" ? d.statut !== "finalise" : etatOf(d) === e).length;
+  const chips = [["", "Tous", S.devis.length], ...ETATS.map(x => [x[0], x[1], cnt(x[0])]), ["brouillon", "Brouillons", cnt("brouillon")]].filter(x => x[0] === "" || x[2])
+    .map(x => `<button class="chip ${(S.fe || "") === x[0] ? "on" : ""}" data-a="fe" data-e="${x[0]}">${x[1]} <b>${x[2]}</b></button>`).join("");
   const k = exerciceKey(todayISO());
   const fin = S.devis.filter(d => d.statut === "finalise" && d.exercice === k);
   const ca = fin.reduce((a, d) => a + (d.totaux?.ht || 0), 0);
@@ -272,14 +282,19 @@ function viewList() {
     </div>
     <div class="hint" style="margin-top:6px">Prochain numéro : <b>${nextNumero(todayISO()).numero}</b></div>
   </div>
-  <input class="i" placeholder="Rechercher un client, un numéro…" value="${esc(S.q || "")}" data-in="q" style="margin-bottom:12px">
+  <input class="i" placeholder="Rechercher un client, un numéro…" value="${esc(S.q || "")}" data-in="q" style="margin-bottom:10px">
+  <div class="chips">${chips}</div>
   <div class="card list">${rows.length ? rows.map(d => `
     <div class="it" data-a="open" data-id="${d.id}">
       <div class="m"><div class="t">${esc(d.client?.nom || "Sans client")}</div>
       <div class="s">${d.numero ? esc(d.numero) : "Brouillon"} · ${dFR(d.date)} · ${esc(d.objet || "")}</div></div>
       <div style="text-align:right"><div class="a">${eur(d.totaux?.ttc)}</div>
-      ${d.statut === "finalise" ? `<span class="pill g">Émis</span>` : `<span class="pill grey">Brouillon</span>`}</div>
+      ${etatPill(d)}</div>
     </div>`).join("") : `<div class="empty">${S.devis.length ? "Aucun résultat." : "Aucun devis pour l'instant.<br>Touchez « Nouveau devis » et dictez."}</div>`}
+  </div>
+  <div class="card"><h2>Importer des devis déjà faits</h2>
+    <div class="hint" style="margin-bottom:10px">Fichiers Word (.doc, .docx) ou PDF. Vous pouvez en choisir plusieurs à la fois. Chaque devis est remis au nouveau format, garde son numéro, puis vous le vérifiez avant de le générer.</div>
+    <label class="btn sec block">Choisir les fichiers<input type="file" multiple accept=".doc,.docx,.pdf,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden data-a="devis-import"></label>
   </div>`;
 }
 
@@ -386,7 +401,7 @@ function viewEditor() {
       <div class="hint" style="margin-top:8px">Astuce : dites les pièces (« Chambre : … »), puis « Fournitures : … » pour la liste du matériel.</div>
     </div>
 `;
-  if (S.step === 2) return steps + editorStep2();
+  if (S.step === 2) return steps + (d.importe && d.statut !== "finalise" ? `<div class="banner i"><b>Devis importé</b> depuis « ${esc(d.importe.fichier)} ». Vérifiez les lignes, puis « Continuer » et « Générer le devis » : il garde son numéro ${esc(d.numero || "")}.${(d.importe.notes || []).map(n => "<br>• " + esc(n)).join("")}</div>` : "") + editorStep2();
   return steps + editorStep3();
 }
 function clientSuggestions() {
@@ -474,6 +489,9 @@ function editorStep3() {
     ${d.pj.length ? `<div class="hint" style="margin-top:10px">${d.pj.length} devis fournisseur(s) en annexe.</div>` : `<div class="hint" style="margin-top:10px">Aucun devis fournisseur en annexe.</div>`}
   </div>
   ${d.statut === "finalise" ? `
+  <div class="card"><h2>Suivi du devis</h2>
+    <div class="etats">${ETATS.map(x => `<button class="btn ${etatOf(d) === x[0] ? "" : "sec"} sm" data-a="etat" data-e="${x[0]}">${x[1]}</button>`).join("")}</div>
+    <div class="hint" style="margin-top:8px">Le statut est ajouté au nom du PDF.</div></div>
   <div class="card"><h2>Envoyer</h2>
     <button class="btn block" data-a="pdf-dl">Télécharger le PDF</button>
     <div style="height:10px"></div>
@@ -583,7 +601,8 @@ async function finalize() {
   const d = S.draft;
   if (problemes(d).length) return;
   if (!d.numero) { const n = nextNumero(d.date); d.numero = n.numero; d.exercice = n.k; }
-  d.statut = "finalise"; d.finalisedAt = Date.now(); d.totaux = totaux(d);
+  else if (!d.exercice) d.exercice = exerciceKey(d.numero.slice(0, 4) + "-" + d.numero.slice(4, 6) + "-01");
+  d.statut = "finalise"; d.etat = d.etat || "attente"; d.finalisedAt = Date.now(); d.totaux = totaux(d);
   await persistDraft(true);
   // compteur
   const k = d.exercice, nn = Number(d.numero.split("N")[1]);
@@ -790,7 +809,7 @@ function embedViaCanvas(out, blob) {
     }; im.onerror = () => res(null); im.src = URL.createObjectURL(blob);
   });
 }
-function pdfName(d) { return `Devis_${d.numero}_${(d.client.nom || "client").replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_|_$/g, "")}.pdf`; }
+function pdfName(d) { const e = etatOf(d); return `Devis_${d.numero}_${(d.client.nom || "client").replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_|_$/g, "")}${e ? "_" + ETAT_FICHIER[e] : ""}.pdf`; }
 async function savePDF(mail) {
   const d = S.draft;
   const btn = $(mail ? "[data-a='pdf-mail']" : "[data-a='pdf-dl']"); if (btn) { btn.disabled = true; btn.textContent = "Création du PDF…"; }
@@ -802,7 +821,8 @@ async function savePDF(mail) {
       S.mailOpen = true;
       const t = totaux(d);
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: `Devis N° ${d.numero}`, text: `Devis N° ${d.numero} — ${S.cfg.societe} — ${eur(t.ttc)} TTC` }); }
+        try { await navigator.share({ files: [file], title: `Devis N° ${d.numero}`, text: `Devis N° ${d.numero} — ${S.cfg.societe} — ${eur(t.ttc)} TTC` });
+          if (etatOf(d) === "attente") { d.etat = "envoye"; await persistDraft(true); toast("Statut passé à « Envoyé »"); } }
         catch (e) { if (e.name !== "AbortError") downloadBlob(blob, name); }
       } else downloadBlob(blob, name);
     } else downloadBlob(blob, name);
@@ -828,6 +848,37 @@ function pickList(q) {
   return items.map(b => `<div class="it" data-a="pick" data-id="${b.id}"><div class="m"><div class="t" style="white-space:normal">${esc(b.designation)}</div><div class="s">${esc(b.metier)}</div></div><div class="a">${eur(b.pu)}<div class="s">/ ${esc(b.unite)}</div></div></div>`).join("") || `<div class="empty">Aucune prestation.</div>`;
 }
 
+
+/* ===================== Import de devis existants ===================== */
+async function importDevis(files) {
+  if (!files.length) return;
+  openModal(`<h3>Import en cours…</h3><div class="hint" id="imp-p">Lecture de ${files.length} fichier(s)</div>`);
+  const res = [];
+  for (const f of files) {
+    try {
+      const txt = await window.Importer.extractText(f);
+      const p = window.Importer.parseDevis(txt, f.name);
+      if (p.numero && S.devis.some(x => x.numero === p.numero)) { res.push({ f: f.name, err: `déjà présent (${p.numero})` }); continue; }
+      const d = Object.assign(newDraft(), {
+        numero: p.numero, exercice: p.numero ? exerciceKey(p.numero.slice(0, 4) + "-" + p.numero.slice(4, 6) + "-01") : null,
+        date: p.date || todayISO(), client: Object.assign({ nom: "", adresse: "", cpVille: "", email: "", tel: "" }, p.client), objet: p.objet, tva: p.tva,
+        sections: p.sections.map(s => ({ titre: s.titre ? s.titre.charAt(0) + s.titre.slice(1).toLowerCase().replace(/^./, c => c.toUpperCase()) : "", lignes: s.lignes.map(l => Object.assign({ id: uid() }, l)) })),
+        importe: { fichier: f.name, notes: p.notes, totalDoc: p.totalDoc, le: Date.now() }, etat: "attente"
+      });
+      if (!d.objet) { const t = d.sections.map(s => s.titre).filter(Boolean); d.objet = t.length ? "Travaux : " + t.slice(0, 3).join(", ").toLowerCase() : "Travaux de rénovation"; }
+      d.totaux = totaux(d); d.updatedAt = Date.now();
+      S.devis.unshift(d); await put("devis/" + d.id, d).catch(() => {});
+      res.push({ f: f.name, d });
+    } catch (e) { console.error(e); res.push({ f: f.name, err: e.message || "illisible" }); }
+    const pe = $("#imp-p"); if (pe) pe.textContent = `${res.length} / ${files.length} fichier(s) lus`;
+  }
+  render();
+  openModal(`<h3>Import terminé</h3><div class="list">${res.map(r => r.d
+    ? `<div class="it" data-a="open" data-id="${r.d.id}"><div class="m"><div class="t">${esc(r.d.numero || "Sans numéro")} · ${esc(r.d.client.nom || "?")}</div><div class="s">${r.d.importe.notes.length ? "⚠ " + esc(r.d.importe.notes[0]) : "Totaux identiques à l'original"}</div></div><div class="a">${eur(r.d.totaux.ht)} HT</div></div>`
+    : `<div class="it"><div class="m"><div class="t">${esc(r.f)}</div><div class="s" style="color:var(--warn)">Non importé : ${esc(r.err)}</div></div></div>`).join("")}</div>
+    <div class="hint" style="margin-top:10px">Les devis importés sont en brouillon : ouvrez-les, vérifiez, puis « Générer le devis ». Ils gardent leur numéro.</div>
+    <button class="btn block" style="margin-top:12px" data-a="close">OK</button>`);
+}
 
 /* ===================== Import catalogue / restauration ===================== */
 async function importJSON(file, kind) {
@@ -860,8 +911,10 @@ document.addEventListener("click", async e => {
   if (el.tagName === "INPUT" && el.type === "file") return;
   switch (a) {
     case "tab": setView(el.dataset.v); break;
+    case "fe": S.fe = el.dataset.e || ""; render(); break;
+    case "etat": d.etat = el.dataset.e; await persistDraft(true); render(); toast("Statut : " + ETATS.find(x => x[0] === d.etat)[1]); break;
     case "new": { const cur = lsGet("gph_current", null); openDraft(cur && cur.statut === "brouillon" && !S.devis.find(x => x.id === cur.id) && (cur.dictee || cur.sections?.length) ? cur : newDraft(), 1); break; }
-    case "open": { const x = S.devis.find(v => v.id === el.dataset.id); if (x) openDraft(x, x.statut === "finalise" ? 3 : 2); break; }
+    case "open": { closeModal(); const x = S.devis.find(v => v.id === el.dataset.id); if (x) openDraft(x, x.statut === "finalise" ? 3 : 2); break; }
     case "leave": persistDraft(true); S.draft = null; S.mailOpen = false; lsSet("gph_current", null); setView("list"); break;
     case "manual": S.step = 2; if (!d.sections.length) d.sections.push({ titre: "", lignes: [] }); render(); break;
     case "ai-run": aiRun(); break;
@@ -895,7 +948,7 @@ document.addEventListener("click", async e => {
     case "pdf-mail": savePDF(true); break;
     case "copy-mail": { const t = totaux(d); const body = `Bonjour,\n\nVeuillez trouver ci-joint notre devis N° ${d.numero} pour ${d.objet || "les travaux"}, d'un montant de ${eur(t.ttc)} TTC.\n\nNous restons à votre disposition pour toute question.\n\nCordialement,\nPhilippe GALLOIS\n${S.cfg.societe} · ${S.cfg.tel}`;
       try { await navigator.clipboard.writeText(body); toast("Texte copié"); } catch (x) { toast("Copie impossible"); } break; }
-    case "dup": { const c = JSON.parse(JSON.stringify(d)); Object.assign(c, { id: uid(), numero: null, exercice: null, statut: "brouillon", date: todayISO(), createdAt: Date.now(), finalisedAt: null }); c.sections.forEach(s => s.lignes.forEach(l => l.id = uid())); openDraft(c, 2); persistDraft(true); toast("Copie créée : nouveau numéro à la génération"); break; }
+    case "dup": { const c = JSON.parse(JSON.stringify(d)); Object.assign(c, { id: uid(), numero: null, exercice: null, statut: "brouillon", etat: null, importe: null, date: todayISO(), createdAt: Date.now(), finalisedAt: null }); c.sections.forEach(s => s.lignes.forEach(l => l.id = uid())); openDraft(c, 2); persistDraft(true); toast("Copie créée : nouveau numéro à la génération"); break; }
     case "draft-del": if (!el.dataset.ok) { el.dataset.ok = 1; el.textContent = d.statut === "finalise" ? "Confirmer : supprimer le devis " + d.numero + " ?" : "Confirmer la suppression ?"; return; }
       S.devis = S.devis.filter(x => x.id !== d.id); await del("devis/" + d.id); S.draft = null; lsSet("gph_current", null); setView("list"); toast("Supprimé"); break;
     case "lib-new": libModal(null); break;
@@ -935,6 +988,7 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   const el = e.target;
   if (el.dataset.a === "pj-add") { addPJ([...el.files]); el.value = ""; return; }
+  if (el.dataset.a === "devis-import") { importDevis([...el.files]); el.value = ""; return; }
   if (el.dataset.a === "cat-import" || el.dataset.a === "restore") { importJSON(el.files[0], el.dataset.a); el.value = ""; return; }
   if (el.dataset.l === "unite" && S.draft) { S.draft.sections[Number(el.dataset.si)].lignes[Number(el.dataset.li)].unite = el.value; persistDraft(); }
   if (el.dataset.d === "date" && S.draft) { S.draft.date = el.value || todayISO(); persistDraft(); }

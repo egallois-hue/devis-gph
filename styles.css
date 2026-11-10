@@ -90,3 +90,9 @@ a.mail{color:var(--roi);font-weight:600;word-break:break-all}
 .mic.on{background:var(--err);color:#fff;animation:pulse 1.2s infinite}
 @keyframes pulse{50%{opacity:.6}}
 .sync{font-size:11px;opacity:.85;z-index:1;margin-left:auto}
+
+.pill.b{background:var(--roi-l);color:var(--roi)}.pill.ok{background:var(--ok);color:#fff}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:12px;-webkit-overflow-scrolling:touch}
+.chip{flex:none;border:1px solid #D5DAE6;background:#fff;color:var(--ink,#1B1F2A);border-radius:20px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.chip b{font-weight:600;color:var(--grey)}.chip.on{background:var(--roi);border-color:var(--roi);color:#fff}.chip.on b{color:#fff}
+.etats{display:flex;flex-wrap:wrap;gap:8px}
