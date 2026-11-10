@@ -159,8 +159,39 @@ async function pull(full) {
     }
     S.devis.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     S.lastSync = newest; lsSet("gph_lastsync", newest); S.syncErr = null; saveLocal();
+    await dedupeBiblio();
   } catch (e) { console.warn("pull", e); S.syncErr = e.message || String(e); }
   S.syncing = false; render();
+}
+/* Doublons parfaits dans « Mes prestations » : même désignation, unité, prix et option fournitures → on garde une seule fiche */
+async function dedupeBiblio() {
+  const seen = new Map(), drop = [];
+  const rank = b => (b.origine === "catalogue" ? 1e6 : 0) + (b.uses || 0);
+  for (const b of [...S.biblio].sort((a, b) => rank(b) - rank(a))) {
+    const k = [norm(b.designation), b.unite || "", num(b.pu) ?? "", !!b.fournitureComprise].join("|");
+    const keep = seen.get(k);
+    if (!keep) { seen.set(k, b); continue; }
+    keep.uses = (keep.uses || 0) + (b.uses || 0);
+    keep.aliases = [...new Set([...(keep.aliases || []), ...(b.aliases || [])])].slice(-20);
+    if (!keep.details?.length && b.details?.length) keep.details = b.details;
+    drop.push({ b, keep });
+  }
+  if (!drop.length) return 0;
+  const ids = new Set(drop.map(x => x.b.id));
+  for (const d of S.devis) for (const sc of d.sections || []) for (const l of sc.lignes) if (ids.has(l.biblio_id)) l.biblio_id = drop.find(x => x.b.id === l.biblio_id).keep.id;
+  S.biblio = S.biblio.filter(b => !ids.has(b.id));
+  for (const k of new Set(drop.map(x => x.keep))) await put("biblio/" + k.id, k).catch(() => {});
+  for (const x of drop) await del("biblio/" + x.b.id).catch(() => {});
+  saveLocal();
+  toast(`${drop.length} prestation(s) en double supprimée(s) automatiquement.`, 4000);
+  return drop.length;
+}
+/* Lignes strictement identiques dans un même devis issues de la dictée */
+function dedupeLignes(d) {
+  let n = 0;
+  for (const sc of d.sections) { const seen = new Set();
+    sc.lignes = sc.lignes.filter(l => { const k = [l.type, norm(l.designation), num(l.quantite), l.unite, num(l.pu), !!l.fournitureComprise].join("|"); if (seen.has(k)) { n++; return false; } seen.add(k); return true; }); }
+  return n;
 }
 function renderSync() {
   const el = document.getElementById("syncst"); if (!el) return;
@@ -175,7 +206,7 @@ setInterval(() => { if (document.visibilityState === "visible") pull(); }, 60000
 /* ===================== Connexion ===================== */
 async function boot() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
-  if (!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY || !window.supabase) { S.ready = true; S.noBackend = true; render(); checkLock(); return; }
+  if (!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY || !window.supabase) { S.ready = true; S.noBackend = true; render(); checkLock(); dedupeBiblio().then(n => n && render()); return; }
   S.sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "gph_auth" } });
   const { data } = await S.sb.auth.getSession();
   setSession(data.session);
@@ -253,9 +284,11 @@ function render() {
   const m = $("#main"), b = $("#barwrap");
   if (needLogin) { $("#tabs").style.display = "none"; m.innerHTML = viewLogin(); b.innerHTML = ""; return; }
   $("#tabs").style.display = inEditor ? "none" : "flex";
-  $("#tabs").innerHTML = [["list", "Devis"], ["biblio", "Prestations"], ["reglages", "Réglages"]]
-    .map(([k, l]) => `<button class="${S.view === k ? "on" : ""}" data-a="tab" data-v="${k}">${l}</button>`).join("");
+  $("#tabs").innerHTML = [["list", "Devis"], ["clients", "Clients"], ["biblio", "Prestations"], ["reglages", "Réglages"]]
+    .map(([k, l]) => `<button class="${S.view === k || (k === "clients" && S.view === "client") ? "on" : ""}" data-a="tab" data-v="${k}">${l}</button>`).join("");
   if (S.view === "list") { m.innerHTML = viewList(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="new">＋ Nouveau devis</button></div>`; }
+  else if (S.view === "clients") { m.innerHTML = viewClients(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="cli-new">＋ Nouveau client</button></div>`; }
+  else if (S.view === "client") { m.innerHTML = viewClient(); b.innerHTML = `<div class="bar"><button class="btn sec" data-a="tab" data-v="clients">Retour</button><button class="btn" data-a="cli-save">Enregistrer</button></div>`; }
   else if (S.view === "biblio") { m.innerHTML = viewBiblio(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="lib-new">＋ Ajouter une prestation</button></div>`; }
   else if (S.view === "reglages") { m.innerHTML = viewReglages(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="cfg-save">Enregistrer les réglages</button></div>`; }
   else if (S.view === "edit") { m.innerHTML = viewEditor(); b.innerHTML = barEditor(); }
@@ -459,8 +492,10 @@ function editorStep2() {
       <div class="row"><button class="btn sec sm" data-a="l-add" data-si="${si}">＋ Ligne</button><button class="btn sec sm" data-a="l-lib" data-si="${si}">＋ Mes prestations</button></div>
       ${s.lignes.length > 1 ? `<div style="text-align:right;margin-top:10px;font-weight:600;color:var(--roi)">Sous-total : ${eur(s.lignes.reduce((a, l) => a + (lineTotal(l) || 0), 0))}</div>` : ""}
     </div>`).join("");
-  return `
+  const fiche = d.clientId && S.clients.find(c => c.id === d.clientId);
+  return questionsCard() + `
   <div class="card"><h2>Client</h2>
+    <div class="row" style="margin-bottom:4px"><button class="btn sec sm" data-a="cli-pick">Choisir dans le répertoire</button>${fiche ? `<span class="hint" style="align-self:center">Fiche : <a href="#" data-a="cli-open" data-id="${fiche.id}">${esc(fiche.nom)}</a></span>` : ""}</div>
     <label class="f">Nom</label><input class="i" data-c="nom" value="${esc(d.client.nom)}" autocomplete="off"><div id="csug">${clientSuggestions()}</div>
     <label class="f">Adresse</label><input class="i" data-c="adresse" value="${esc(d.client.adresse)}">
     <label class="f">Code postal et ville</label><input class="i" data-c="cpVille" value="${esc(d.client.cpVille)}">
@@ -558,6 +593,10 @@ function aiRun() {
   if (text.length < 8) return toast("Dictez d'abord le devis.");
   const res = window.Moteur.analyse(text, S.biblio, { carrelage: carrelageCfg() });
   applyResult(res);
+  { const ex = S.draft.clientId ? S.clients.find(c => c.id === S.draft.clientId) : S.clients.find(c => S.draft.client.nom && norm(c.nom) === norm(S.draft.client.nom));
+    if (ex) { S.draft.clientId = ex.id; const sn = snapshotOf(normClient(ex)); for (const k of Object.keys(sn)) if (!S.draft.client[k]) S.draft.client[k] = sn[k]; } }
+  { const nd = dedupeLignes(S.draft); if (nd) res.notes.unshift(`${nd} ligne(s) en double supprimée(s) automatiquement.`); }
+  S.draft.qRound = 0; S.draft.qAsked = []; askQuestions(res);
   S.step = 2; persistDraft(); render(); window.scrollTo(0, 0);
   if (res.notes.length) { S.aiNotes = res.notes; showNotes(); }
 }
@@ -635,10 +674,7 @@ async function finalize() {
   const k = d.exercice, nn = Number(d.numero.split("N")[1]);
   if (nn > Number((S.cfg.compteurs || {})[k] || 0)) { S.cfg.compteurs = Object.assign({}, S.cfg.compteurs, { [k]: nn }); put("config/app", S.cfg).catch(() => {}); }
   // client
-  const ckey = norm(d.client.nom + " " + d.client.adresse);
-  let c = S.clients.find(x => norm(x.nom + " " + x.adresse) === ckey);
-  if (!c) { c = Object.assign({ id: uid() }, d.client); S.clients.push(c); } else Object.assign(c, d.client);
-  c.updatedAt = Date.now(); put("clients/" + c.id, c).catch(() => {});
+  try { await linkDevisClient(d); await persistDraft(true); } catch (e) { console.error(e); }
   // apprentissage des prestations (main-d'œuvre uniquement)
   for (const s of d.sections) for (const l of s.lignes) {
     if (l.type !== "mo" || num(l.pu) === null || !l.designation) continue;
@@ -651,7 +687,7 @@ async function finalize() {
     const i = S.biblio.findIndex(x => x.id === b.id); if (i >= 0) S.biblio[i] = b; else S.biblio.push(b);
     await put("biblio/" + b.id, b).catch(() => {});
   }
-  render(); toast("Devis " + d.numero + " enregistré");
+  render(); toast("Devis " + d.numero + " enregistré"); setTimeout(() => dedupeBiblio().then(n => n && render()), 2700);
 }
 
 /* ===================== PDF ===================== */
@@ -897,6 +933,7 @@ async function importDevis(files) {
       });
       if (!d.objet) { const t = d.sections.map(s => s.titre).filter(Boolean); d.objet = t.length ? "Travaux : " + t.slice(0, 3).join(", ").toLowerCase() : "Travaux de rénovation"; }
       d.totaux = totaux(d); d.updatedAt = Date.now();
+      await linkDevisClient(d).catch(() => {});
       S.devis.unshift(d); await put("devis/" + d.id, d).catch(() => {});
       res.push({ f: f.name, d });
     } catch (e) { console.error(e); res.push({ f: f.name, err: e.message || "illisible" }); }
@@ -924,7 +961,7 @@ async function importJSON(file, kind) {
       const i = S.biblio.findIndex(x => x.id === b.id); if (i >= 0) S.biblio[i] = Object.assign({}, S.biblio[i], b); else S.biblio.push(b);
       await put("biblio/" + b.id, b); n++;
     }
-    render(); toast(n + " prestation(s) importée(s)");
+    toast(n + " prestation(s) importée(s)"); await dedupeBiblio(); render();
   } else {
     if (!data.devis || !data.biblio) return toast("Ce fichier n'est pas une sauvegarde");
     S.cfg = Object.assign({}, DEFAULT_CFG, data.cfg || {}); await put("config/app", S.cfg);
@@ -942,6 +979,18 @@ document.addEventListener("click", async e => {
   switch (a) {
     case "tab": setView(el.dataset.v); break;
     case "lfc": { const l = d.sections[si].lignes[li]; l.fournitureComprise = el.checked; persistDraft(); render(); break; }
+    case "ft": S.ft = el.dataset.e || ""; render(); break;
+    case "cli-new": openClient(null); break;
+    case "cli-open": e.preventDefault(); closeModal(); if (S.view === "edit" && d) { persistDraft(true); S.draft = null; lsSet("gph_current", null); } openClient(el.dataset.id); break;
+    case "cf-type": S.cliEdit.type = el.dataset.e; if (S.cliEdit.type === "couple") { if (!S.cliEdit.p1.civ) S.cliEdit.p1.civ = "M."; if (!S.cliEdit.p2.nom && !S.cliEdit.p2.prenom) S.cliEdit.p2 = { civ: "Mme", prenom: "", nom: S.cliEdit.p1.nom }; } render(); break;
+    case "cli-save": clientSaveForm(); break;
+    case "cli-del": if (!el.dataset.ok) { el.dataset.ok = 1; el.textContent = "Confirmer la suppression ?"; return; }
+      { const id = S.cliEdit.id; S.clients = S.clients.filter(x => x.id !== id); for (const x of S.devis) if (x.clientId === id) { x.clientId = null; put("devis/" + x.id, x).catch(() => {}); } await del("clients/" + id); S.cliEdit = null; setView("clients"); toast("Fiche supprimée"); } break;
+    case "cli-newdevis": { const c = normClient(S.cliEdit); const nd = Object.assign(newDraft(), { clientId: c.id, client: snapshotOf(c) }); openDraft(nd, 1); break; }
+    case "cli-export": exportClients(); break;
+    case "cli-pick": clientPicker(); break;
+    case "q-apply": applyAnswers(); break;
+    case "q-skip": d.qAsked = [...new Set([...(d.qAsked || []), ...(d.questions || []).map(q => q.key)])]; d.questions = []; persistDraft(); render(); break;
     case "fe": S.fe = el.dataset.e || ""; render(); break;
     case "etat": d.etat = el.dataset.e; await persistDraft(true); render(); toast("Statut : " + ETATS.find(x => x[0] === d.etat)[1]); break;
     case "new": { const cur = lsGet("gph_current", null); openDraft(cur && cur.statut === "brouillon" && !S.devis.find(x => x.id === cur.id) && (cur.dictee || cur.sections?.length) ? cur : newDraft(), 1); break; }
@@ -971,7 +1020,7 @@ document.addEventListener("click", async e => {
     case "ltype": { const l = d.sections[si].lignes[li]; if (l.type !== el.dataset.t) { l.type = el.dataset.t; if (l.type === "fourniture" && l.source !== "dicte") { l.pu = null; l.source = "a_saisir"; l.biblio_id = null; } render(); persistDraft(); } break; }
     case "l-lib": libPicker(si); break;
     case "pick": { const b = S.biblio.find(x => x.id === el.dataset.id); if (b) { d.sections[S.pickSi].lignes.push({ id: uid(), type: "mo", fournitureComprise: !!b.fournitureComprise, designation: b.designation, details: (b.details || []).slice(), quantite: b.unite === "forfait" ? 1 : null, unite: b.unite, pu: num(b.pu), source: "bibliotheque", biblio_id: b.id }); closeModal(); render(); persistDraft(); } break; }
-    case "pick-client": { const c = S.clients.find(x => x.id === el.dataset.id); if (c) { d.client = { nom: c.nom, adresse: c.adresse || "", cpVille: c.cpVille || "", email: c.email || "", tel: c.tel || "" }; render(); persistDraft(); } break; }
+    case "pick-client": { const c0 = S.clients.find(x => x.id === el.dataset.id); if (c0 && d) { const c = normClient(c0); d.clientId = c.id; d.client = snapshotOf(c); closeModal(); render(); persistDraft(); break; } if (c0) { d.client = { nom: c.nom, adresse: c.adresse || "", cpVille: c.cpVille || "", email: c.email || "", tel: c.tel || "" }; render(); persistDraft(); } break; }
     case "idem": d.chantierIdem = el.checked; render(); persistDraft(); break;
     case "pj-del": d.pj.splice(Number(el.dataset.i), 1); render(); persistDraft(); break;
     case "finalize": el.disabled = true; await finalize(); break;
@@ -993,6 +1042,10 @@ document.addEventListener("click", async e => {
 document.addEventListener("input", e => {
   const el = e.target, d = S.draft;
   if (el.id === "pk-q") { $("#pk-list").innerHTML = pickList(el.value); return; }
+  if (el.id === "pc-q") { $("#pc-list").innerHTML = pickClientList(el.value); return; }
+  if (el.dataset.in === "qc") { S.qc = el.value; const pos = el.selectionStart; render(); const n = $("[data-in='qc']"); n.focus(); n.setSelectionRange(pos, pos); return; }
+  if (el.dataset.cf && S.cliEdit) { const [a, b2] = el.dataset.cf.split("."); if (b2) S.cliEdit[a][b2] = el.value; else S.cliEdit[a] = el.value; const disp = $("#cf-disp"); if (disp) disp.textContent = clientDisplay(S.cliEdit) || "—"; return; }
+  if (el.dataset.qa !== undefined && d && d.questions) { d.questions[Number(el.dataset.qa)].answer = el.value; return; }
   if (el.dataset.in === "q") { S.q = el.value; const pos = el.selectionStart; render(); const n = $("[data-in='q']"); n.focus(); n.setSelectionRange(pos, pos); return; }
   if (el.dataset.in === "qb") { S.qb = el.value; const pos = el.selectionStart; render(); const n = $("[data-in='qb']"); n.focus(); n.setSelectionRange(pos, pos); return; }
   if (!d) return;
@@ -1019,6 +1072,8 @@ document.addEventListener("input", e => {
 document.addEventListener("change", e => {
   const el = e.target;
   if (el.dataset.a === "pj-add") { addPJ([...el.files]); el.value = ""; return; }
+  if (el.dataset.a === "cli-import") { importClients([...el.files]); el.value = ""; return; }
+  if (el.dataset.cf && S.cliEdit) { const [a, b2] = el.dataset.cf.split("."); if (b2) S.cliEdit[a][b2] = el.value; else S.cliEdit[a] = el.value; const disp = $("#cf-disp"); if (disp) disp.textContent = clientDisplay(S.cliEdit) || "—"; return; }
   if (el.dataset.a === "devis-import") { importDevis([...el.files]); el.value = ""; return; }
   if (el.dataset.a === "cat-import" || el.dataset.a === "restore") { importJSON(el.files[0], el.dataset.a); el.value = ""; return; }
   if (el.dataset.l === "unite" && S.draft) { S.draft.sections[Number(el.dataset.si)].lignes[Number(el.dataset.li)].unite = el.value; persistDraft(); }

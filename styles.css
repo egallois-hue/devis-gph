@@ -98,3 +98,5 @@ a.mail{color:var(--roi);font-weight:600;word-break:break-all}
 .etats{display:flex;flex-wrap:wrap;gap:8px}
 .pill.r{background:#FDECEC;color:var(--err)}
 label.fc{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:8px;font-weight:500}label.fc input{width:20px;height:20px}
+.qcard{border:2px solid var(--roi-m)}
+.seg button.on{background:#fff}

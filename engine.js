@@ -196,10 +196,10 @@ function match(index, text, unite) {
     for (const t of q) { const w = d.set.get(t); if (w) { dot += w * index.idf(t) ** 2; hits++; } }
     if (!hits) continue;
     let score = dot / (qn * d.norm);
-    if (!d.acts) d.acts = new Set(tokens(d.b.designation).filter(t => ACTIONS.has(t)));
+    if (!d.acts) { const a = tokens(d.b.designation).filter(t => ACTIONS.has(t)); d.acts = new Set(a.length > 1 && a.includes("pos") && /^mise en/i.test(d.b.designation) ? a.filter(t => t !== "pos") : a); }
     const qa = q.filter(t => ACTIONS.has(t));
     const compat = qa.some(t => d.acts.has(t)) || (qa.includes("pos") && d.acts.has("remplac")) || (qa.includes("remplac") && d.acts.has("pos"));
-    if (qa.length && d.acts.size && !compat) score -= 0.25;
+    if (qa.length && d.acts.size && !compat) score -= 0.4;
     if (unite && d.b.unite === unite) score += 0.08;
     else if (unite && d.b.unite && unite !== d.b.unite && !(unite === "u" && d.b.unite === "forfait")) score -= (["m²", "ml", "m³"].includes(unite) && ["m²", "ml", "m³"].includes(d.b.unite)) ? 0.2 : 0.06;
     out.push({ b: d.b, score: r2(score), hits });
@@ -390,7 +390,7 @@ function analyse(dictee, biblio, opts = {}) {
   let objet = ""; const ob = text.match(/\bobjet\s*:?\s*([^.\n;]{4,90})/i); if (ob) { objet = cap(ob[1].trim()); body = body.replace(ob[0], " "); }
 
   const sections = []; let cur = null, fournMode = false;
-  const notes = [];
+  const notes = [], ignored = [];
   const getSec = titre => { let s = sections.find(x => x.titre === titre); if (!s) { s = { titre, lignes: [] }; sections.push(s); } return s; };
   let lastAction = null; const pending = splitClauses(body);
   const findBib = q => { const m = match(index, q)[0]; return m && m.score >= 0.3 ? m.b : null; };
@@ -496,7 +496,7 @@ function analyse(dictee, biblio, opts = {}) {
     if (!isFourn) {
       const dt = tokens(desc);
       // bavardage : ni action, ni chiffre, ni prestation reconnue → non retenu
-      if (!ligne.biblio_id && am.quantite === null && am.pu === null && (!dt.some(t => ACTIONS.has(t)) || dt.length > 14)) { notes.push(`Phrase non retenue : « ${raw.slice(0, 90)}${raw.length > 90 ? "…" : ""} »`); continue; }
+      if (!ligne.biblio_id && am.quantite === null && am.pu === null && (!dt.some(t => ACTIONS.has(t)) || dt.length > 14)) { notes.push(`Phrase non retenue : « ${raw.slice(0, 90)}${raw.length > 90 ? "…" : ""} »`); ignored.push(raw); continue; }
       // déjà couvert par la ligne précédente (« je vais le poncer » après « ponçage et vitrification »)
       if (lastLine && am.quantite === null && am.pu === null && dt.length && dt.length <= 4 && dt.some(t => ACTIONS.has(t)) && dt.filter(t => ACTIONS.has(t)).every(t => tokens(lastLine.designation).includes(t)) && !match(index, desc).some(m => m.score >= 0.42 && m.b.id !== lastLine.biblio_id)) continue;
       // même prestation dictée deux fois sans quantité : on fusionne
@@ -509,6 +509,7 @@ function analyse(dictee, biblio, opts = {}) {
         const nc = x => F.couches && F.couches !== 2 ? x.replace(/\b2 couches\b/g, `${F.couches} couches`) : x;
         const lm = bm ? fromBib(bm, { quantite: murs, unite: "m²", raw }) : Object.assign({}, ligne, { designation: "Peinture des murs", quantite: murs, unite: "m²" });
         const lp = bp ? fromBib(bp, { quantite: F.sol, unite: "m²", raw }) : Object.assign({}, ligne, { designation: "Peinture du plafond", quantite: F.sol, unite: "m²" });
+        lm.estime = true; lm.estimeInfo = { sol: F.sol, hauteur: F.hauteur || 2.5 };
         lm.details = lm.details.concat([`Surface estimée : pièce de ${String(F.sol).replace(".", ",")} m² au sol, hauteur ${String(F.hauteur || 2.5).replace(".", ",")} m (à vérifier, ouvertures non déduites)`], ext);
         if (F.couches) lp.details = lp.details.concat(ext);
         for (const L of [lm, lp]) { L.designation = nc(L.designation); L.details = L.details.map(nc); }
@@ -538,7 +539,7 @@ function analyse(dictee, biblio, opts = {}) {
   let dureeJours = null;
   const du = text.match(/(?:prendre|prend|dur(?:e|é)e|durer|dure|compter|faut|pr(?:e|é)voir|chantier\s+de)[^.¶\d]{0,40}?(\d+(?:[.,]5)?)\s*(jours?|journ(?:e|é)es?|semaines?)/i);
   if (du) { dureeJours = Number(du[1].replace(",", ".")) * (/semaine/i.test(du[2]) ? 5 : 1); notes.push(`Durée du chantier : ${String(dureeJours).replace(".", ",")} jour(s) ouvré(s), reprise dans le suivi du devis.`); }
-  return { client, objet, tva, sections, notes, chantier: "", dureeJours };
+  return { client, objet, tva, sections, notes, chantier: "", dureeJours, ignored };
 }
 
 const Moteur = { CARRELAGE_DEFAUT, analyse, reformulate, match, buildIndex, tokens, convertNumbers, parseAmounts, splitClauses, extractClient };

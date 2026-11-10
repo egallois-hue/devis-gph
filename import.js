@@ -250,6 +250,6 @@ function parseAppPDF(lines, d) {
   d.sections = d.sections.filter(s => s.lignes.length);
 }
 
-root.Importer = { extractText, parseDevis, docText, docxText, pdfItemsToText };
+root.Importer = { zipEntry, extractText, parseDevis, docText, docxText, pdfItemsToText };
 if (typeof module !== "undefined" && module.exports) module.exports = root.Importer;
 })(typeof window !== "undefined" ? window : globalThis);
