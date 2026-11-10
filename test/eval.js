@@ -70,6 +70,7 @@ function evalCase(c) {
   for (const k of Object.keys(res.cli)) if (!res.cli[k]) res.errs.push(`CLIENT ${k} : attendu « ${g[k === "adr" ? "adr" : k] ?? ""} », obtenu « ${k === "adr" ? cl.adresse : k === "ville" ? cl.cpVille : cl[k]} »`);
   res.duree = c.duree === undefined ? (r.dureeJours == null) : r.dureeJours === c.duree;
   if (!res.duree) res.errs.push(`DURÉE attendu ${c.duree}, obtenu ${r.dureeJours}`);
+  if (c.debut !== undefined && r.debut !== c.debut) res.errs.push(`DÉBUT attendu ${c.debut}, obtenu ${r.debut}`);
   res.tva = r.tva === (c.tva || 10); if (!res.tva) res.errs.push(`TVA attendu ${c.tva || 10}, obtenu ${r.tva}`);
   res.perfect = res.errs.length === 0;
   return res;

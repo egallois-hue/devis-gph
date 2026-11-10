@@ -808,6 +808,7 @@ function segmenter(body) {
     { const n = priceAt(i); if (n && cur.length) { push(n); if (cur.length) pend = true; continue; } }
     // nouveau décompte : « … | 3 fenêtres », « … | un radiateur »
     if (cur.length && !onlyLead && isCountStart(i) && !(GOVERN.has(prev) || (ACT_WORD.test(prev) && !postInf) || isNumTok(cur[cur.length - 1]) || /^chambres?/.test(prev))) flush("juxt");
+    if (cur.length && /^[A-ZÀ-Ý][a-zà-ÿ]/.test(t.w) && (ACT_WORD.test(l) || NOM_METIER.test(l) || /^(?:la|le|les|un|une|peinture|parquet|plinthes?|cloison|debut|duree)$/.test(l)) && !isNumTok(cur[cur.length - 1]) && !pend) flush("juxt");
     if (NOM_METIER.test(l) && cur.length >= 2 && !GOVERN.has(prev) && !/^(?:l'|d')/.test(prev) && cur.some((x, k) => (isNumTok(x) || /^une?$/.test(x.l)) && cur[k + 1] && !UNIT_TOK.has(cur[k + 1].l))) flush("juxt");
     // nouveau mot d'action
     if (ACT_WORD.test(l)) {
@@ -892,6 +893,20 @@ function analyse(dictee, biblio, opts) {
     if (p2) { if (!park) park = { q: null, raw: p2[0].trim() }; body = body.replace(p2[0], " ¶ "); }
     if (park) { const b = (matchTokens(index, tokens("frais de stationnement paris"))[0] || {}).b; if (b && /stationnement|parking/i.test(b.designation)) frais.push(fromBib(b, { quantite: park.q, raw: park.raw })); else frais.push({ type: "mo", designation: "Frais de stationnement", details: [], quantite: park.q, unite: "jour", pu: null, source: "a_saisir", biblio_id: null, raw: park.raw, suggestions: [] }); }
   }
+  // date de début du chantier
+  let debut = null;
+  { const MOIS = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"];
+    const m = body.match(new RegExp(NB + "(?:d[ée]but|d[ée]marrage|commencement)\\s+(?:du\\s+chantier|des\\s+travaux)?\\s*(?:pr[ée]vu\\s+)?(?:le\\s+|au\\s+|:\\s*)?(\\d{1,2}|1er|premier)\\s+(janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre)(?:\\s+(20\\d{2}))?", "i"))
+           || body.match(new RegExp(NB + "(?:on\\s+|je\\s+)?(?:commence|d[ée]marre|attaque)(?:\\s+le\\s+chantier|\\s+les\\s+travaux)?\\s+le\\s+(\\d{1,2}|1er|premier)\\s+(janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre)(?:\\s+(20\\d{2}))?", "i"));
+    if (m) { const today = opts.today ? new Date(opts.today) : new Date(), j = /^\d/.test(m[1]) ? parseInt(m[1], 10) : 1, mo = MOIS.indexOf(low(m[2]));
+      let y = m[3] ? Number(m[3]) : today.getFullYear(); if (!m[3] && new Date(y, mo, j + 1) < today) y++;
+      debut = `${y}-${String(mo + 1).padStart(2, "0")}-${String(j).padStart(2, "0")}`; body = body.replace(m[0], " ¶ "); notes.push(`Début du chantier : ${String(j).padStart(2, "0")}/${String(mo + 1).padStart(2, "0")}/${y}.`); } }
+  body = body.replace(new RegExp(NB + "(?:dans\\s+un\\s+(?:premier|deuxi[eè]me|second|troisi[eè]me)\\s+temps|(?:premi[eè]re|deuxi[eè]me|seconde|troisi[eè]me|quatri[eè]me|autre|derni[eè]re)\\s+(?:prestation|chose|[ée]tape|partie)|(?:premier|deuxi[eè]me|second|troisi[eè]me|dernier)\\s+(?:point|poste|lot))" + NA, "gi"), " ¶ ")
+             .replace(new RegExp(NB + "(?:premi[eè]re|deuxi[eè]me|seconde|troisi[eè]me|quatri[eè]me|autre|derni[eè]re)\\s+pi[eè]ce" + NA, "gi"), " ¶ ")
+             .replace(new RegExp(NB + "(?:sur|dans|pour|toujours\\s+dans)\\s+(?:la\\s+m[eê]me|cette)\\s+pi[eè]ce" + NA, "gi"), " ");
+  // « la salle de bain fait 15 m² » : surface au sol de la pièce ; « sur toute la hauteur du mur qui fait 2,50 m » : hauteur
+  body = body.replace(new RegExp(NB + "((?:la\\s+|le\\s+|les\\s+|l')?(?:salles?\\s+de\\s+bains?|salles?\\s+d'eau|salles?\\s+de\\s+douches?|chambres?(?:\\s+\\d)?|cuisine|salon|s[ée]jour|salle\\s+[àa]\\s+manger|pi[eè]ce|bureau|entr[ée]e|couloir|wc|toilettes|garage|buanderie|cellier|dressing|v[ée]randa|studio|appartement))\\s+(?:fait|mesure|c'est)\\s+(\\d+(?:,\\d+)?)\\s*m²", "gi"), (m, r, a) => ` ¶ ${r} ⟦sol:${nb(a)}⟧ ¶ `)
+             .replace(new RegExp("(?:sur\\s+)?toute\\s+la\\s+hauteur(?:\\s+(?:du|des)\\s+murs?)?(?:\\s+(?:qui\\s+(?:fait|font)|soit|de|donc))?((?:\\s+\\d+(?:,\\d+)?\\s*m(?![²³l\\wà-ÿ]))+)?", "gi"), (m, hs) => { const all = hs ? hs.match(/\d+(?:,\d+)?/g) : null; return all ? ` ⟦haut:${nb(all[all.length - 1])}⟧ ` : " "; });
   // surface au sol et hauteur sous plafond : marqueurs rattachés ensuite à la pièce
   { const Nn = "(\\d+(?:,\\d+)?)";
     body = body.replace(new RegExp("(?:(?:avec\\s+)?(?:une\\s+|la\\s+)?surface\\s+(?:au\\s+sol\\s+)?(?:de\\s+|d'environ\\s+)?)" + Nn + "\\s*m²(?:\\s+au\\s+sol)?", "gi"), (m, a) => ` ⟦sol:${nb(a)}⟧ `)
@@ -1073,6 +1088,7 @@ function analyse(dictee, biblio, opts) {
     if (!raw) continue;
 
     { const cz = raw.match(/^(?:de\s+|pris\s+|achet[ée]e?s?\s+)?chez\s+((?:[A-ZÀ-Ý][\wà-ÿ'-]*\s*){1,3})$/); if (cz && lastLine) { lastLine.details = (lastLine.details || []).concat(["Fournisseur : " + cz[1].trim()]); continue; } }
+    if (TILE_CTX.test(raw)) raw = raw.replace(/\s+(?:pause|pose)$/i, "");
     const tile = extractTile(raw, !!seg.tileMod); raw = tile.txt || raw;
     if (seg.tileMod && lastLine && lastLine.tile) { applyTile(lastLine, Object.assign({}, lastLine.tile, { fmt: tile.fmt || lastLine.tile.fmt, tier: tile.tier || lastLine.tile.tier, jointFin: tile.jointFin || lastLine.tile.jointFin, epoxy: tile.epoxy || lastLine.tile.epoxy, pose: tile.pose || lastLine.tile.pose }), true); continue; }
     // pièce citée dans le segment
@@ -1235,14 +1251,16 @@ function analyse(dictee, biblio, opts) {
       const same = sec.lignes.filter(x => x.biblio_id === ligne.biblio_id);
       const anyw = sections.flatMap(s => s.lignes).filter(x => x.biblio_id === ligne.biblio_id);
       const explicitQ = am.quantite !== null || (!!inherited && /^une?\s/i.test(desc) && ligne.unite === "u");
-      if (!explicitQ && anyw.length && !(ligne.unite === "u" && seg.conj)) { lastFrame = { line: anyw[anyw.length - 1], titre, action: acts[0] || inherited || lastAction, carrelage: isPoseCarrelage }; if (acts.length) lastAction = acts.find(a => a !== "refect") || acts[0]; continue; }
+      const zs = x => [...new Set(tokens(String(x || "")).filter(t => ZONES.has(t)))].sort().join("+");
+      const autreZone = same.length && zs(raw) && same.every(x => zs(x.raw) && zs(x.raw) !== zs(raw));       // « carrelage au sol » puis « carrelage au mur » : deux lignes
+      if (!explicitQ && same.length && !autreZone && !(ligne.unite === "u" && seg.conj)) { lastFrame = { line: anyw[anyw.length - 1], titre, action: acts[0] || inherited || lastAction, carrelage: isPoseCarrelage }; if (acts.length) lastAction = acts.find(a => a !== "refect") || acts[0]; continue; }
       const open = same.find(x => x.quantite === null || (x._implicit && x.unite === ligne.unite)) || anyw.find(x => x.quantite === null) || (lastLine && lastLine._implicit && lastLine.biblio_id === ligne.biblio_id ? lastLine : null);
       if (explicitQ && open) { if (!sec.lignes.includes(open)) { for (const s2 of sections) { const k = s2.lignes.indexOf(open); if (k >= 0) s2.lignes.splice(k, 1); } sec.lignes.push(open); } open.quantite = ligne.quantite; if (ligne.unite) open.unite = ligne.unite; if (am.pu !== null) { open.pu = am.pu; open.source = "dicte"; } open.raw += " " + raw; delete open._implicit; lastLine = open; lastFrame = { line: open, titre, action: acts[0] || inherited || lastAction, carrelage: isPoseCarrelage }; if (acts.length) lastAction = acts.find(a => a !== "refect") || acts[0]; continue; }
       if (explicitQ && lastLine && lastLine.biblio_id === ligne.biblio_id && lastLine.quantite === ligne.quantite && lastLine.unite === ligne.unite && sec.lignes.includes(lastLine)) continue;
       if (!explicitQ) ligne._implicit = true;
     }
     // sols sans quantité : surface au sol dictée
-    { const fx = factsFor(room); if (fx && fx.sol && ligne.quantite === null && ligne.unite === "m²" && tk.some(t => /^(?:parquet|sol|carrelag|ragreag|vitrif|moquett|vinyle|poncag)$/.test(t)) && !zones.includes("mur")) { ligne.quantite = fx.sol; ligne.details = ligne.details.concat([`Surface au sol : ${fr(fx.sol)} m²`]); } }
+    { const fx = factsFor(room); if (fx && fx.sol && ligne.quantite === null && ligne.unite === "m²" && tk.some(t => /^(?:parquet|sol|carrelag|ragreag|vitrif|moquett|vinyle|poncag)$/.test(t)) && !zones.includes("mur") && !/fa[iï]ence|mural/i.test(raw)) { ligne.quantite = fx.sol; ligne.details = ligne.details.concat([`Surface au sol : ${fr(fx.sol)} m²`]); } }
     addLine(ligne, titre);
     lastFrame = { line: ligne, titre, action: acts.find(a => a !== "refect") || acts[0] || inherited || null, carrelage: isPoseCarrelage };
     if (acts.length) lastAction = acts.find(a => a !== "refect") || acts[0]; else if (inherited) lastAction = inherited; else if (hardLead) lastAction = null;
@@ -1264,6 +1282,24 @@ function analyse(dictee, biblio, opts) {
       }
     }
   }
+  { const zoneDe = l => { const r = low((l.raw || "")), d = low(l.designation);
+      const mur = /(?<![a-z])murs?(?![a-z])|mural|faience|papier|toile de verre|enduit|ratiss/.test(r), sol = /(?<![a-z])sols?(?![a-z])|parquet|moquette|lino|vinyle|pvc|ragre|stratifi|vitrifi|ponc/.test(r), pla = /plafond/.test(r);
+      if (mur && (sol || (/carrelage/.test(r) && /faience/.test(r)))) return "mur+sol"; if (mur && pla) return "mur+plafond"; if (pla) return "plafond"; if (mur) return "mur"; if (sol) return "sol";
+      if (/plafond/.test(d) && /murs?/.test(d)) return "mur+plafond"; if (/^peinture des plafonds|faux plafond/.test(d)) return "plafond";
+      if (/^peinture des murs|papier peint|enduit|ratissage|toile de verre|doublage|etancheite de murs/.test(d)) return "mur";
+      if (/de sol|parquet|ragreage|carrelage|vinyle/.test(d)) return "sol"; return null; };
+    const seules = Object.keys(F.rooms).filter(k => k !== "*");
+    for (const sec of sections) { if (sec.titre === "Fournitures" || sec.titre === "Frais de chantier") continue;
+      const fx = F.rooms[sec.titre] || (sec.titre === "Travaux" && !seules.length ? F.rooms["*"] : null) || {};
+      let sol = fx.sol || null, deduit = false;
+      if (!sol) { const fl = sec.lignes.find(l => l.type === "mo" && l.unite === "m²" && l.quantite !== null && !l.estime && zoneDe(l) === "sol"); if (fl && sec.titre !== "Travaux") { sol = fl.quantite; deduit = true; } }
+      if (!sol) continue;
+      const h = fx.haut || 2.5, murs = Math.round(4 * Math.sqrt(sol) * h * 10) / 10; let nM = 0, nS = 0;
+      for (const l of sec.lignes) { if (l.type !== "mo" || l.unite !== "m²" || l.quantite !== null) continue; const z = zoneDe(l); if (!z) continue;
+        if (z === "sol" || z === "plafond") { l.quantite = sol; l.details = (l.details || []).concat([`Surface ${z === "sol" ? "au sol" : "du plafond"} : ${fr(sol)} m²`]); nS++; }
+        else { l.quantite = r2(murs + (z === "mur" ? 0 : sol)); l.estime = true; l.estimeInfo = { sol, hauteur: h }; l.details = (l.details || []).concat([`Surface estimée : pièce de ${fr(sol)} m² au sol, hauteur ${fr(h)} m (à vérifier, ouvertures non déduites)`]); nM++; } }
+      if (nM) notes.push(`${sec.titre} : ${fr(murs)} m² de murs calculés pour une pièce carrée de ${fr(sol)} m² au sol et ${fr(h)} m de hauteur${fx.haut ? "" : " (hauteur supposée)"}. Mesurez sur place et corrigez si besoin.`);
+      if (nS && deduit) notes.push(`${sec.titre} : ${fr(sol)} m² au sol repris pour les lignes sans surface.`); } }
   // format de carrelage dit une seule fois : vaut pour les autres lignes de pose
   { const tl = sections.flatMap(s => s.lignes).filter(l => l.tile); const withF = tl.filter(l => l.tile.fmt || l.tile.tier); const kinds = new Set(withF.map(l => l.tile.fmt ? l.tile.fmt.join("x") : l.tile.tier));
     if (kinds.size === 1) for (const l of tl) if (!l.tile.fmt && !l.tile.tier) applyTile(l, Object.assign({}, l.tile, { fmt: withF[0].tile.fmt, tier: withF[0].tile.tier }), true);
@@ -1294,7 +1330,7 @@ function analyse(dictee, biblio, opts) {
   const nbInc = sections.reduce((a, s) => a + s.lignes.filter(l => l.incertain).length, 0);
   if (nbInc) notes.push(`${nbInc} ligne(s) à vérifier : la prestation choisie n'est pas certaine (touchez « Prestations proches »).`);
   if (dureeJours) notes.push(`Durée du chantier : ${fr(dureeJours)} jour(s) ouvré(s), reprise dans le suivi du devis.`);
-  return { client, objet, tva, sections, notes, chantier: "", dureeJours, ignored };
+  return { client, objet, tva, sections, notes, chantier: "", dureeJours, debut, ignored };
 }
 
 const Moteur = { VERSION: 2, CARRELAGE_DEFAUT, analyse, reformulate, match, matchTokens, decide, buildIndex, tokens, convertNumbers, normalizeOral, parseAmounts, splitClauses, segmenter, extractClient, learnKey };

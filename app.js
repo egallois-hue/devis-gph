@@ -608,6 +608,8 @@ function applyResult(res) {
   if (res.objet) d.objet = res.objet;
   d.tva = res.tva;
   if (res.dureeJours) d.dureeJours = res.dureeJours;
+  if (res.debut) d.debut = res.debut;
+  if (d.debut && d.dureeJours && typeof addWorkDays === "function") { try { d.finPrevue = addWorkDays(d.debut, Number(d.dureeJours)); } catch (e) {} }
   d.sections = res.sections.map(s => ({ titre: s.titre === "Travaux" ? "" : s.titre, lignes: s.lignes.map(l => Object.assign({ id: uid() }, l)) }));
 }
 function showNotes() {

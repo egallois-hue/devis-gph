@@ -195,7 +195,7 @@
  },
  "final": {
   "train": {
-   "dictees": 67,
+   "dictees": 68,
    "parfaites": 100,
    "rappel": 100,
    "precision": 100,
@@ -212,7 +212,7 @@
    "duree": 100,
    "tva": 100,
    "tempsMoyenMs": 10.63,
-   "tempsMaxMs": 49.15
+   "tempsMaxMs": 79.57
   },
   "test": {
    "dictees": 25,
@@ -231,8 +231,8 @@
    "clientVille": 100,
    "duree": 100,
    "tva": 100,
-   "tempsMoyenMs": 8.38,
-   "tempsMaxMs": 9.92
+   "tempsMoyenMs": 8.32,
+   "tempsMaxMs": 11.38
   }
  },
  "final_valid3": {

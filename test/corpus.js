@@ -12,6 +12,12 @@
    Les clients et adresses sont fictifs. Aucun prix du catalogue ne figure ici. */
 module.exports = [
 /* ============================== ENTRAÎNEMENT ============================== */
+/* Dictée réelle (11/11/2026, nom modifié) : surfaces données par pièce, hauteur, date de début */
+{ id: "G01", set: "train",
+  text: `Devis pour Monsieur Henri Girard 9, rue de la gare à Forges les bains dans un premier temps pour une chambre Dépose du carrelage Pose d'un parquet flottant Sur 30 m² Deuxième prestation Dépose du papier peint des murs et peinture et enduit Sur la même pièce avec une hauteur sous plafond de 2,50 m Deuxième pièce salle de bain Dépose de la baignoire Et de l'évier Dépose de toute la faïence et du carrelage au sol Carrelage 60 60 avec joint fin au sol pause Et pose de carrelage au mur Sur toute la hauteur du mur qui fait 1 m 2,50 m La salle de bain fait 15 m² Pose d'un bac à douche 120 par 80 avec vitres coulissant Et robinetterie pose d'une double vasque plus robinet gré Plus miroir intégrée Création de cinq prises électriques un interrupteur Et cinq spots au plafond Début du chantier le 15 novembre Et la durée 20 jours`,
+  client: { nom: "M. Henri Girard", adr: "9 rue de la Gare", ville: "Forges" }, duree: 20, debut: "2026-11-15",
+  L: [["P010", 30, "m²"], ["P051", 30, "m²"], ["P009", 54.8, "m²"], ["P025", 54.8, "m²"], ["P012", 1, "forfait"], ["P010", 53.7, "m²"], ["P044", 15, "m²"], ["P044", 38.7, "m²"],
+      ["P064", 1, "forfait"], ["P057", 1, "forfait"], ["P060", 1, "u"], ["P069", 5, "u"], ["P068|P070", 1, "u"], ["P072", 5, "u"]] },
 /* Cas de non-régression tirés des demandes réelles (format de carrelage dit avant la surface) */
 { id: "R01", set: "train",
   text: `Devis pour madame Martin 3 rue des Lilas à Dourdan. Cuisine : pose de carrelage soixante soixante avec joint fin 18 m2. Peinture des murs 30 m2 fournitures comprises.`,
