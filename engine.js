@@ -816,6 +816,9 @@ function segmenter(body) {
       postInf = inf || (postInf && prev === null);
       cur.push(t); if (inf) postInf = true; if (t.hard) flush("hard"); else if (t.soft) flush("soft"); continue;
     }
+    if (cur.length >= 3 && /^[a-zà-ÿ-]{5,}$/.test(l) && !GOVERN.has(l) && !UNIT_TOK.has(l) && !/^(?:murs?|plafonds?|sols?|pareil|idem|parentale?s?|principale?s?|fournie?s?|compris|comprise?s?|existante?s?|complete?s?|entiere?s?|seule?s?|seulement|uniquement)$/.test(l) && !isNumTok(t)) {
+      const fin = cur.slice(-4).map(x => x.l).join(" "), r = roomsIn(fin).pop();
+      if (r && r.index + r.len === fin.length && !ROOM_AS_OBJECT.has(r.base) && cur.some(x => ACT_WORD.test(x.l)) && !/^(?:dans|pour|chez)$/.test(cur[0].l)) flush("juxt"); }
     if (/^(?:le|la|les)$/.test(l) && cur.length >= 2 && prev && !GOVERN.has(prev) && !ACT_WORD.test(prev) && !SUBJECT.has(prev) && !LEADW.has(prev) && !/^(?:long|meme|plus|moins|tout|toute)$/.test(L(i + 1)) && T[i + 1]
         && cur.some((x, k) => (isNumTok(x) || /^une?$/.test(x.l)) && cur[k + 1] && !UNIT_TOK.has(cur[k + 1].l))) flush("juxt");
     push(1);
@@ -1005,7 +1008,7 @@ function analyse(dictee, biblio, opts) {
     const seg = merged[si]; let raw = seg.raw.trim(); curSi = si;
     const hardLead = seg.lead === "hard";
     // retraits : « non en fait laisse tomber le nettoyage »
-    { const rt = raw.match(/^(?:non\s+)?(?:en\s+fait\s+|finalement\s+)?(?:(?:on\s+|je\s+)?(?:laisse|laisses|laissez)\s+tomber|oublie[sz]?|annule[sz]?|supprime[sz]?|enl[eè]ve[sz]?\s+du\s+devis|(?:on\s+)?(?:ne\s+)?(?:fait|fais)\s+pas|pas\s+de|pas\s+besoin\s+de)\s+(.+)$/i);
+    { const rt = raw.match(/^(?:non\s+)?(?:pardon\s+)?(?:en\s+fait\s+|finalement\s+)?(?:(?:on\s+|je\s+)?(?:laisse|laisses|laissez)\s+tomber|oublie[sz]?|annule[sz]?|supprime[sz]?|enl[eè]ve[sz]?\s+du\s+devis|(?:on\s+)?(?:ne\s+)?(?:fait|fais)\s+pas|pas\s+de|pas\s+besoin\s+de)\s+(.+)$/i);
       if (rt) { const tg = tokens(rt[1]); let done = false;
         for (let k = sections.length - 1; k >= 0 && !done; k--) for (let j = sections[k].lignes.length - 1; j >= 0; j--) { const l = sections[k].lignes[j]; const lt2 = new Set(tokens((l.raw || "") + " " + l.designation)); if (tg.length && tg.some(t => lt2.has(t)) && tg.filter(t => lt2.has(t)).length >= Math.min(tg.length, 1)) { notes.push(`Ligne retirée à votre demande : « ${l.designation.slice(0, 60)} ».`); sections[k].lignes.splice(j, 1); done = true; break; } }
         continue; }
@@ -1037,9 +1040,9 @@ function analyse(dictee, biblio, opts) {
     const rms = roomsIn(raw);
     if (rms.length && !isFourn) {
       const rm = rms[0], before = low(raw.slice(0, rm.index)).trim(), after = raw.slice(rm.index + rm.len).trim();
-      const headBefore = /^(?:(?:et\s+)?(?:dans|pour|cote|en|au niveau de|concernant|partie)?\s*(?:la|le|les|l'|sa|son|ses|leur|un|une)?\s*|(?:r[ée]novation|r[ée]fection|refai(?:re|s|t|sons)|refont|r[ée]nov(?:er|e|ons|ent)|fai(?:re|s|t|sons)|travaux\s+(?:dans|de))\s+(?:compl[eè]te(?:ment)?\s+|entierement\s+)?(?:de\s+|d')?(?:toute?s?\s+)?(?:la\s+|le\s+|les\s+|l'|sa\s+|son\s+|leur\s+)?)$/.test(before + " ");
+      const headBefore = /^(?:(?:et\s+)?(?:dans|pour|cote|en|au niveau de|concernant|partie)?\s*(?:la|le|les|l'|sa|son|ses|leur|un|une)?\s*|(?:il|elle|ils|elles|on)\s+(?:a|ont)\s+(?:la|le|les|sa|son|ses|leur|un|une)\s*|(?:r[ée]novation|r[ée]fection|refai(?:re|s|t|sons)|refont|r[ée]nov(?:er|e|ons|ent)|fai(?:re|s|t|sons)|travaux\s+(?:dans|de))\s+(?:compl[eè]te(?:ment)?\s+|entierement\s+)?(?:de\s+|d')?(?:toute?s?\s+)?(?:la\s+|le\s+|les\s+|l'|sa\s+|son\s+|leur\s+)?)$/.test(before + " ");
       const afterTk = tokens(after.replace(/^(?:\d\s+)?/, ""));
-      const afterIsHead = !after || (roomsIn(after).length && afterTk.every(t => !ACTIONS.has(t)) && !hasQty(after)) || (!hasQty(after) && !afterTk.some(t => ACTIONS.has(t)) && afterTk.length <= 2 && !decide(matchTokens(index, afterTk)).ok);
+      const afterIsHead = !after || /^(?:à|a)\s+(?:refaire|r[ée]nover|faire|reprendre|r[ée]am[ée]nager)(?:\s+(?:compl[eè]tement|enti[eè]rement|en\s+entier))?$/i.test(after) || (roomsIn(after).length && afterTk.every(t => !ACTIONS.has(t)) && !hasQty(after)) || (!hasQty(after) && !afterTk.some(t => ACTIONS.has(t)) && afterTk.length <= 2 && !decide(matchTokens(index, afterTk)).ok);
       const objetEntier = ROOM_AS_OBJECT.has(rm.base) && after && decide(matchTokens(index, tokens(raw))).ok;      // « WC suspendu » : prestation, pas un titre de pièce
       if (headBefore && afterIsHead && !objetEntier) {
         headerRoom = rm.name; inlineRoom = null; if (/renovation/.test(before) && /appartement|maison|logement/.test(low(raw))) F.renov = true;
@@ -1100,7 +1103,7 @@ function analyse(dictee, biblio, opts) {
     /* ----- main-d'œuvre ----- */
     if (/(?<![\wà-ÿ])(?:en\s+plus|en\s+suppl[ée]ment|suppl[ée]mentaires?)(?![\wà-ÿ])/i.test(desc) && /\d|(?<![\wà-ÿ])une?(?![\wà-ÿ])/i.test(desc)) { desc = desc.replace(/(?<![\wà-ÿ])(?:en\s+plus|en\s+suppl[ée]ment|suppl[ée]mentaires?)(?![\wà-ÿ])/gi, " ").replace(/\s{2,}/g, " ").trim(); seg.ajout = true; }
     let S = sig(desc); let tk = S.tk.slice();
-    { const sc = sansComplement(desc); if (sc.txt !== desc) { const S2 = sig(sc.txt); if (S2.tk.length) { const dF = decide(matchTokens(index, S.tk)), dS = decide(matchTokens(index, S2.tk)); const s2 = new Set(S2.tk), utile = dF.ok && S.tk.some(t => !s2.has(t) && index.byId.get(dF.best.b.id).U.has(t)); if (!utile && dS.ok && (!dF.ok || dS.best.score >= dF.best.score - 0.02) || (!dF.ok && !dS.ok && sc.txt.length < desc.length && /(?:qui|qu')\s/i.test(desc.slice(sc.txt.length)))) { S = S2; tk = S2.tk.slice(); ligne.lieu = sc.lieu; ligne.descUtile = sc.txt; } } } }
+    { const sc = sansComplement(desc); if (sc.txt !== desc) { const S2 = sig(sc.txt); if (S2.tk.length) { const dF = decide(matchTokens(index, S.tk)), dS = decide(matchTokens(index, S2.tk)); const s2 = new Set(S2.tk), eF = dF.ok && index.byId.get(dF.best.b.id), utile = dF.ok && S.tk.some(t => !s2.has(t) && eF.U.has(t)) && (!S2.others.length || S2.others.some(t => eF.U.has(t))); if (!utile && dS.ok && (!dF.ok || dS.best.score >= dF.best.score - 0.02) || (!dF.ok && !dS.ok && sc.txt.length < desc.length && /(?:qui|qu')\s/i.test(desc.slice(sc.txt.length)))) { S = S2; tk = S2.tk.slice(); ligne.lieu = sc.lieu; ligne.descUtile = sc.txt; } } } }
     if (seg.ajout && !tk.some(t => ACTIONS.has(t))) tk.push("cre");
     const roomTok = new Set(); for (const r of roomsIn(desc)) if (lieu(r, desc)) for (const t of tokens(desc.slice(r.index, r.index + r.len))) roomTok.add(t);
     const isRoomObj = /^(?:pose|d[ée]pose|installation|montage)\s+(?:d'une?|de\s+la|du)\s+(?:cuisine|salle)/i.test(desc);
@@ -1212,7 +1215,8 @@ function analyse(dictee, biblio, opts) {
       if (seg.intro && am.quantite === null && am.pu === null) continue;                                    // phrase d'introduction détaillée juste après (« … donc … »)
       if (acts.length === 1 && !others.length && !zones.length && am.quantite === null && am.pu === null) continue;  // verbe seul
       if (acts.length === 1 && acts[0] === "refect" && am.quantite === null && am.pu === null) { ignored.push(raw); continue; }                // « réfection de la douche » : annonce, détaillée ensuite (« dépose et remplacement ») : déjà couvert
-      if (!acts.length && am.quantite === null && am.pu === null) {
+      const enonce = /^(?:je|j'|on|nous)\s*(?:lui\s+|leur\s+|y\s+)?[a-zà-ÿ]{3,}(?:e|es|s|t|ons|is|ds)\s+(?:le|la|les|l'|un|une|des|du|son|sa|ses)\s*[a-zà-ÿ]{3,}/i.test(seg.raw.trim()) && others.length >= 2 && tk.length <= 5 && !seg.intro;
+      if (!acts.length && am.quantite === null && am.pu === null && !enonce) {
         if (others.length + zones.length >= 2 && tk.length <= 14) { ignored.push(raw); notes.push(`Phrase non retenue : « ${raw.slice(0, 90)}${raw.length > 90 ? "…" : ""} »`); }
         continue; }
       if (tk.length > 14) { ignored.push(raw); notes.push(`Phrase non retenue : « ${raw.slice(0, 90)}… »`); continue; }

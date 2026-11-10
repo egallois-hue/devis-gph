@@ -481,4 +481,4 @@ module.exports = [
   text: `devis pour monsieur et madame Da Silva 16 rue de la Paix à Corbeil-Essonnes fenêtre de la cuisine à remplacer coffrage en bois des tuyaux et pose de lames occultantes 8 panneaux sur la clôture et 4 heures de régie pour le reste`,
   client: { nom: "M. et Mme Da Silva", adr: "16 rue de la Paix", ville: "Corbeil-Essonnes" },
   L: [["P079", 1, "u"], ["P082", 1, "forfait"], ["P089", 8, "panneau"], ["P090", 4, "h"]] },
-].concat(require("./corpus_valid.js"), require("./corpus_valid2.js"));
+].concat(require("./corpus_valid.js"), require("./corpus_valid2.js"), require("./corpus_valid3.js"));
