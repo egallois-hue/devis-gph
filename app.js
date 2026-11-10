@@ -602,7 +602,7 @@ function aiRun() {
 }
 function applyResult(res) {
   const d = S.draft;
-  for (const k of ["nom", "adresse", "cpVille", "email", "tel"]) if (res.client[k]) d.client[k] = res.client[k];
+  for (const k of ["nom", "adresse", "cpVille", "email", "tel"]) if (res.client[k] && (!d.clientId || !d.client[k])) d.client[k] = res.client[k];
   if (res.objet) d.objet = res.objet;
   d.tva = res.tva;
   if (res.dureeJours) d.dureeJours = res.dureeJours;

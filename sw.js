@@ -1,7 +1,7 @@
 /* Service worker : l'application fonctionne hors connexion (dictée, mise en forme, PDF).
    Les données se synchronisent quand le réseau revient. */
-const VERSION = "gph-v7";
-const SHELL = ["./", "index.html", "styles.css?v=7", "app.js?v=7", "engine.js?v=7", "import.js?v=7", "questions.js?v=7", "crm.js?v=7", "config.js?v=7", "fonts.js?v=7",
+const VERSION = "gph-v8";
+const SHELL = ["./", "index.html", "styles.css?v=8", "app.js?v=8", "engine.js?v=8", "import.js?v=8", "questions.js?v=8", "crm.js?v=8", "config.js?v=8", "fonts.js?v=8",
   "vendor/supabase.js", "vendor/jspdf.umd.min.js", "vendor/pdf-lib.min.js",
   "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });

@@ -227,7 +227,7 @@ function extractClient(text) {
   if (em) { c.email = (em[1] + "@" + em[2] + "." + em[3]).toLowerCase(); consumed.push(em[0]); }
   const tel = text.match(/\b0[1-9](?:[\s.]?\d{2}){4}\b/);
   if (tel) { c.tel = tel[0].replace(/[\s.]/g, "").replace(/(\d{2})(?=\d)/g, "$1 "); consumed.push(tel[0]); }
-  const nm = text.match(new RegExp("(?:devis\\s+(?:pour|chez|de)|pour|chez|client(?:e)?\\s*:?)\\s+((?:monsieur et madame|m(?:\\.|r)? et mme|mesdames et messieurs|monsieur|madame|mademoiselle|mme|mlle|m\\.|mr|(?:la )?copropri(?:e|é)t(?:e|é)|(?:le )?syndic|(?:la )?soci(?:e|é)t(?:e|é))\\s+[^,.;\\d]{2,60}?)(?=\\s*(?:,|\\.|;|\\bqui\\b|\\bau\\b|\\bà\\b|\\ba\\b|\\bhabit|\\bdemeur|\\bsitu|\\b\\d|$))", "i"));
+  const nm = text.match(new RegExp("(?:devis\\s+(?:pour|chez|de)|pour|chez|client(?:e)?\\s*:?)\\s+((?:monsieur et madame|m(?:\\.|r)? et mme|mesdames et messieurs|monsieur|madame|mademoiselle|mme|mlle|m\\.|mr|(?:la )?copropri(?:e|é)t(?:e|é)|(?:le )?syndic|(?:la )?soci(?:e|é)t(?:e|é))\\s+[^,.;\\d]{2,60}?)(?=\\s*(?:,|\\.|;|$)|\\s(?:qui|au|à|a|chez|sur)(?=\\s|$)|\\s(?:habit|demeur|situ)|\\s\\d)", "i"));
   if (nm) {
     let n = nm[1].trim(); let civ = "";
     for (const [re, rep] of CIV) { const m = n.match(re); if (m) { civ = rep; n = n.slice(m[0].length).trim(); break; } }
