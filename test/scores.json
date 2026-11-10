@@ -62,5 +62,27 @@
    "tempsMoyenMs": 10.24,
    "tempsMaxMs": 48
   }
+ },
+ "valid2_premier_passage": {
+  "valid2": {
+   "dictees": 20,
+   "parfaites": 55,
+   "rappel": 86.8,
+   "precision": 90.4,
+   "quantites": 93.8,
+   "prixDictes": 100,
+   "fournComprise": 100,
+   "fournRappel": 100,
+   "fournPrecision": 100,
+   "fournExactes": 100,
+   "prixInventes": 0,
+   "clientNom": 100,
+   "clientAdresse": 100,
+   "clientVille": 100,
+   "duree": 100,
+   "tva": 100,
+   "tempsMoyenMs": 14.31,
+   "tempsMaxMs": 64.11
+  }
  }
 }
