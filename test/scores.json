@@ -84,5 +84,91 @@
    "tempsMoyenMs": 14.31,
    "tempsMaxMs": 64.11
   }
+ },
+ "apres_v2": {
+  "train": {
+   "dictees": 67,
+   "parfaites": 100,
+   "rappel": 100,
+   "precision": 100,
+   "quantites": 100,
+   "prixDictes": 100,
+   "fournComprise": 100,
+   "fournRappel": 100,
+   "fournPrecision": 100,
+   "fournExactes": 100,
+   "prixInventes": 0,
+   "clientNom": 100,
+   "clientAdresse": 100,
+   "clientVille": 100,
+   "duree": 100,
+   "tva": 100,
+   "tempsMoyenMs": 9.89,
+   "tempsMaxMs": 50.33
+  },
+  "test": {
+   "dictees": 25,
+   "parfaites": 88,
+   "rappel": 97.8,
+   "precision": 100,
+   "quantites": 98.9,
+   "prixDictes": 100,
+   "fournComprise": 100,
+   "fournRappel": 100,
+   "fournPrecision": 83.3,
+   "fournExactes": 100,
+   "prixInventes": 0,
+   "clientNom": 100,
+   "clientAdresse": 100,
+   "clientVille": 100,
+   "duree": 100,
+   "tva": 100,
+   "tempsMoyenMs": 8.58,
+   "tempsMaxMs": 11.48
+  }
+ },
+ "apres_v2_valid": {
+  "valid": {
+   "dictees": 22,
+   "parfaites": 100,
+   "rappel": 100,
+   "precision": 100,
+   "quantites": 100,
+   "prixDictes": 100,
+   "fournComprise": 100,
+   "fournRappel": 100,
+   "fournPrecision": 100,
+   "fournExactes": 100,
+   "prixInventes": 0,
+   "clientNom": 100,
+   "clientAdresse": 100,
+   "clientVille": 100,
+   "duree": 100,
+   "tva": 100,
+   "tempsMoyenMs": 13.96,
+   "tempsMaxMs": 56.34
+  }
+ },
+ "apres_v2_valid2": {
+  "valid2": {
+   "dictees": 20,
+   "parfaites": 100,
+   "rappel": 100,
+   "precision": 100,
+   "quantites": 100,
+   "prixDictes": 100,
+   "fournComprise": 100,
+   "fournRappel": 100,
+   "fournPrecision": 100,
+   "fournExactes": 100,
+   "prixInventes": 0,
+   "clientNom": 100,
+   "clientAdresse": 100,
+   "clientVille": 100,
+   "duree": 100,
+   "tva": 100,
+   "tempsMoyenMs": 13.33,
+   "tempsMaxMs": 63.1
+  }
  }
 }

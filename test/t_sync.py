@@ -6,8 +6,8 @@ async def main():
         ctx=await b.new_context()
         async def route(r):
             u=r.request.url
-            if u.endswith("vendor/supabase.js"): await r.fulfill(path="test/mock_supabase.js", content_type="application/javascript")
-            elif u.endswith("config.js"): await r.fulfill(body='window.GPH_CONFIG={SUPABASE_URL:"https://x.supabase.co",SUPABASE_ANON_KEY:"k"}', content_type="application/javascript")
+            if ("vendor/supabase.js" in u): await r.fulfill(path="test/mock_supabase.js", content_type="application/javascript")
+            elif ("config.js" in u): await r.fulfill(body='window.GPH_CONFIG={SUPABASE_URL:"https://x.supabase.co",SUPABASE_ANON_KEY:"k"}', content_type="application/javascript")
             else: await r.continue_()
         await ctx.route("**/*", route)
         A=await ctx.new_page(); errs=[]; A.on("pageerror",lambda e:errs.append(str(e)))
