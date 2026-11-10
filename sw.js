@@ -1,6 +1,6 @@
 /* Service worker : l'application fonctionne hors connexion (dictée, mise en forme, PDF).
    Les données se synchronisent quand le réseau revient. */
-const VERSION = "gph-v1";
+const VERSION = "gph-v2";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "engine.js", "config.js", "fonts.js",
   "vendor/supabase.js", "vendor/jspdf.umd.min.js", "vendor/pdf-lib.min.js",
   "manifest.webmanifest", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"];

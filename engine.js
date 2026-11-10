@@ -231,7 +231,7 @@ function extractClient(text) {
   }
   const ad = text.match(new RegExp("\\b(\\d{1,4}(?:\\s?(?:bis|ter))?)\\s*,?\\s+((?:" + STREET + ")\\b[^,.;]*?)(?=\\s*(?:,|\\.|;|\\s(?:à|a|au|sur)\\s|\\s\\d{2}\\s?\\d{3}\\b|$))", "i"));
   if (ad) { c.adresse = ad[1].replace(/\s/g, " ") + " " + ad[2].trim().replace(/^(\w)/, x => x.toLowerCase()); c.adresse = c.adresse.replace(/\b(rue|avenue|boulevard|allée|allee|chemin|impasse|place|route|villa|passage|square|quai|cours|résidence|residence|sentier)\s+(?:de\s+la\s+|de\s+l'|du\s+|des\s+|de\s+)?(.+)$/i, (m, t, rest) => m.slice(0, m.length - rest.length) + titleCase(rest)); consumed.push(ad[0]); }
-  const cp = text.match(/\b(\d{2})\s?(\d{3})\s+([A-Za-zÀ-ÿ' -]{2,40}?)(?=\s*(?:,|\.|;|$|\s(?:pour|on|il|le|la|les|chambre|salle|cuisine|wc)\b))/i);
+  const cp = text.match(/\b(\d{2})\s?(\d{3})\s+([A-Za-zÀ-ÿ' -]{2,40}?)(?=\s*(?:,|\.|;|$|\s\d|\s\S+@|\s(?:pour|on|il|j|je|le|la|les|t[eé]l|chambre|salle|cuisine|wc)\b))/i);
   if (cp && /^(7[5-8]|9[1-5]|2[78]|6[0]|4[5])/.test(cp[1])) { c.cpVille = cp[1] + cp[2] + " " + titleCase(cp[3].trim()); consumed.push(cp[0]); }
   else {
     const v = text.match(/(?:^|[\s,])(?:à|a|sur)\s+([A-ZÀ-Ý][\wÀ-ÿ'-]+(?:[\s-](?:sur|sous|les|lès|le|la|en|de|du|saint|sainte|[A-ZÀ-Ý][\wÀ-ÿ'-]+)){0,4})/);
@@ -320,6 +320,24 @@ function splitClauses(text) {
   return fin.map(s => s.trim()).filter(s => s && !/^[,.;: ]+$/.test(s));
 }
 
+
+/* ---------- Dictée « parlée » (phrases longues, sans ponctuation) ---------- */
+const CHAT_LEAD = /^(?:(?:alors|donc|et|bon|ok|aussi|du coup)\s+)*(?:(?:et\s+)?dans\s+ce\s+chantier\s+)?(?:j['’]ai\s+un\s+(?:devis|chantier|client)\s+(?:pour|chez|o[uù])\s+|(?:dans\s+ce\s+chantier\s+)?il\s+y\s+a\s+(?:aussi\s+)?(?:un\s+(?:petit\s+)?chantier\s+o[uù]\s+)?|un\s+petit\s+chantier\s+o[uù]\s+|j['’]ai\s+(?:aussi\s+)?(?:un\s+peu\s+de\s+)?|je\s+(?:dois|vais|veux|voudrais|compte|pense)\s+(?:aussi\s+)?|on\s+(?:doit|va)\s+|il\s+(?:faut|faudra)\s+|l['’]id[ée]e\s+c['’]est\s+(?:de\s+)?)*/i;
+const CHAT_DROP = /^(?:(?:et\s+)?(?:dans|sur)\s+ce\s+chantier\s*[.,]?$|je\s+te\s+laisse|je\s+pense\s+que\s+le\s+devis|compte\s+(?:[çc]a|cela)|le\s+revenir|tu\s+peux|merci|voil[aà]|c['’]est\s+tout|et\s+voil[aà])/i;
+function conversation(body) {
+  const facts = { notes: [], extra: [] };
+  let t = " " + body + " ";
+  const sol = t.match(/surface\s+(?:au\s+sol\s+)?(?:de\s+|d['’]environ\s+)?(\d+(?:[.,]\d+)?)\s*(?:m(?:e|è)tres?\s*carr(?:e|é)s?|m\s?2|m²)/i);
+  const haut = t.match(/hauteur\s+(?:sous\s+plafond\s+)?(?:de\s+|d['’]environ\s+)?(\d+(?:[.,]\d+)?)\s*(?:m(?:e|è)tres?|m)\b(?:\s*(\d{2}))?/i);
+  if (sol) { facts.sol = Number(sol[1].replace(",", ".")); t = t.replace(sol[0], " "); }
+  if (haut) { facts.hauteur = Number(haut[1].replace(",", ".")) + (haut[2] ? Number(haut[2]) / 100 : 0); t = t.replace(haut[0], " "); }
+  const couches = t.match(/\b(\d)\s+couches?\b/i); if (couches) facts.couches = Number(couches[1]);
+  // découpe sur les mots de liaison de la langue parlée
+  t = t.replace(/\s+(?:donc|du coup|parce\s+qu['’]?\w*|l['’]id[ée]e\s+c['’]est|je\s+pense\s+que|il\s+y\s+a\s+aussi|et\s+il\s+y\s+a|et\s+dans\s+ce\s+chantier|dans\s+ce\s+chantier|et\s+je\s+(?=dois|vais|prends|pense|compte|mets)|et\s+(?=le|la|les)\s+[a-zà-ÿ' ]{3,40}?\s+je\s+prends|je\s+prends|j['’]ai\s+aussi|on\s+a\s+aussi)\b/gi, m => " ¶ " + m.trim() + " ");
+  t = t.replace(/\s+(?:il\s+est|c['’]est)\s+(?:dans|sur|à|a)\s+paris\b[^¶]*/gi, m => { facts.paris = true; return " ¶ "; });
+  return { text: t.replace(/\s*¶\s*/g, ". ").replace(/\s{2,}/g, " ").trim(), facts };
+}
+
 /* ---------- Analyse complète ---------- */
 function analyse(dictee, biblio, opts = {}) {
   const today = opts.today || new Date();
@@ -327,6 +345,7 @@ function analyse(dictee, biblio, opts = {}) {
   const index = buildIndex(biblio || []);
   const { client, consumed } = extractClient(text);
   let body = text; for (const c of consumed) body = body.replace(c, " ");
+  const conv = conversation(body); body = conv.text; const F = conv.facts;
   // TVA
   let tva = 10; const lt = low(text);
   if (/tva\s*(?:a|à|de)?\s*20|20\s*%\s*(?:de\s*)?tva|local (?:professionnel|commercial)|construction neuve|logement neuf|bureaux?\b/.test(lt)) tva = 20;
@@ -338,8 +357,28 @@ function analyse(dictee, biblio, opts = {}) {
   const notes = [];
   const getSec = titre => { let s = sections.find(x => x.titre === titre); if (!s) { s = { titre, lignes: [] }; sections.push(s); } return s; };
   let lastAction = null; const pending = splitClauses(body);
+  const findBib = q => { const m = match(index, q)[0]; return m && m.score >= 0.3 ? m.b : null; };
+  const fromBib = (b, extra) => Object.assign({ type: "mo", designation: b.designation, details: (b.details || []).slice(), quantite: 1, unite: b.unite, pu: b.pu ?? null,
+    source: b.pu !== null && b.pu !== undefined ? "bibliotheque" : "a_saisir", biblio_id: b.id, raw: "", suggestions: [] }, extra || {});
+  // frais de déplacement / stationnement repérés n'importe où dans la dictée
+  const km = text.match(/(?:plus\s+de\s+|environ\s+|à\s+|a\s+)?(\d+)\s*(?:km|kilom(?:e|è)tres?)\b/i);
+  if (/frais\s+(?:kilom|de\s+d(?:e|é)placement|de\s+route)|indemnit(?:e|é)s?\s+kilom/i.test(text) || km) {
+    const b = findBib("frais de déplacement chantier éloigné");
+    const l = b ? fromBib(b) : { type: "mo", designation: "Frais de déplacement", details: [], quantite: 1, unite: "forfait", pu: null, source: "a_saisir", biblio_id: null, raw: "", suggestions: [] };
+    if (km) l.details = [`Chantier situé à ${/plus\s+de/i.test(km[0]) ? "plus de " : ""}${km[1]} km de l'entreprise`];
+    getSec("Frais de chantier").lignes.push(l); F.deplacement = true;
+  }
+  if (F.paris) { const b = findBib("frais de stationnement paris"); if (b) getSec("Frais de chantier").lignes.push(fromBib(b, { quantite: null })); }
+  let lastLine = null;
   while (pending.length) { let raw = pending.shift();
     raw = raw.replace(/^(?:devis|le devis|un devis)\b[^,.;]*$/i, "").trim(); if (!raw) continue;
+    if (CHAT_DROP.test(raw) || /^parce\s+qu/i.test(raw)) continue;
+    if (/frais\s+(?:kilom|de\s+d(?:e|é)placement|de\s+route)|\d+\s*(?:km|kilom)/i.test(raw) && F.deplacement) continue;
+    let prendFourn = false;
+    { const pf = raw.match(/\b(?:je\s+)?(?:prends?|prendre|prend)\s+(?:en\s+fournitures?\s+)?(.+)$/i) || raw.match(/\b(?:en\s+fournitures?|comme\s+fournitures?)\s+(.+)$/i);
+      if (pf && !/^(?:le|la|les)?\s*(?:mesures?|temps|cotes?)\b/i.test(pf[1])) { raw = pf[1]; prendFourn = true; } }
+    for (let k = 0; k < 3; k++) raw = raw.replace(CHAT_LEAD, "").replace(/^(?:que\s+|refaire\s+(?=de|la|le|les|du)|faire\s+(?=de|la|le|les|du))/i, "").trim();
+    if (!raw || CHAT_DROP.test(raw)) continue;
     if (/^(?:tva|bonjour|merci|c'est tout|voil(?:a|à) c'est tout|fin)\b/i.test(raw)) continue;
     // en-tête de pièce (« Chambre : … », « Dans la salle de bains, … », « Côté cuisine »)
     const lr = low(raw);
@@ -352,8 +391,9 @@ function analyse(dictee, biblio, opts = {}) {
     if (/^(?:les\s+)?fournitures?\b|^(?:mat(?:e|é)riel|mat(?:e|é)riaux)\s*:/i.test(raw)) {
       fournMode = true; raw = raw.replace(/^(?:les\s+)?fournitures?\s*:?\s*|^(?:mat(?:e|é)riel|mat(?:e|é)riaux)\s*:\s*/i, "").trim(); if (!raw) continue;
     }
-    const isFourn = fournMode || /^(?:fourniture|fournir|achat|acheter)\b|\bfourniture d[eu']/i.test(raw);
-    if (isFourn && /,\s*\S/.test(raw)) {   // liste de fournitures : une ligne par article
+    const isFourn = prendFourn || fournMode || /^(?:fourniture|fournir|achat|acheter)\b|\bfourniture d[eu']/i.test(raw);
+    if (prendFourn) raw = raw.replace(/\s*,\s*/g, " ").replace(/^(un|une|le|la)?\s*ballon\b(?!\s+d['’]eau)(?:\s+de)?/i, "ballon d'eau chaude").replace(/\s+avec\s+\d\s+couches?\b/i, "").replace(/\b(\d+)\s*l\b/gi, "$1 L");
+    if (isFourn && !prendFourn && /,\s*\S/.test(raw)) {   // liste de fournitures : une ligne par article
       const items = raw.split(/,\s+(?:et\s+)?(?=\D|\d+\s+[a-zà-ÿ])/i).map(x => x.trim()).filter(Boolean);
       if (items.length > 1) { fournMode = fournMode || /^(?:fourniture|fournir|achat|acheter)/i.test(raw); pending.unshift(...items.map((x, i) => (i === 0 ? x : "fourniture " + x))); continue; }
     }
@@ -362,7 +402,7 @@ function analyse(dictee, biblio, opts = {}) {
     if (!isFourn && !hasAction && lastAction && /^\s*(?:(?:les?|la|des)\s+)?(?:plafonds?|murs?|sols?|portes?|plinthes?|boiseries?|radiateurs?)\b/i.test(raw)) raw = lastAction + " " + raw;
     if (!isFourn) { const a = raw.match(/^(?:on\s+|il faut\s+)?(peinture|pose|d(?:e|é)pose|pon(?:c|ç)age|nettoyage|enduit)\b/i); if (a) lastAction = a[1]; }
     const am = parseAmounts(raw);
-    let desc = am.cleaned.replace(/^(?:fourniture\s+(?:de|d['’]|du|des)\s*|fournir\s+|acheter\s+)/i, "").replace(/\s*:\s*$/, "").trim();
+    let desc = am.cleaned.replace(/\s+(?:dans|pour)\s+(?:un|une|le|la|l['’])\s*(?:salon|s(?:e|é)jour|cuisine|chambre|salle\s+(?:de|d['’])\s*\S+|entr(?:e|é)e|couloir|bureau)\b/i, "").replace(/(?:\s+(?:avec|et|de|d['’]|une?|,))+\s*$/i, "").replace(/(?:\s*,\s*(?:une?|de)?)+\s*$/, "").replace(/^(?:fourniture\s+(?:de|d['’]|du|des)\s*|fournir\s+|acheter\s+)/i, "").replace(/\s*:\s*$/, "").trim();
     if (!desc || desc.length < 3) { if (am.pu !== null || am.quantite !== null) notes.push(`Montant sans description ignoré : « ${raw} »`); continue; }
     const ligne = { type: isFourn ? "fourniture" : "mo", designation: "", details: [], quantite: am.quantite, unite: am.unite, pu: null, source: "a_saisir", biblio_id: null, raw, suggestions: [] };
     if (isFourn) {
@@ -390,12 +430,42 @@ function analyse(dictee, biblio, opts = {}) {
     }
     if (!isFourn && ligne.quantite === null && (ligne.unite === "u" || ligne.unite === "forfait")) ligne.quantite = 1;
     const titre = isFourn ? "Fournitures" : (lineRoom && cur && lineRoom !== cur.titre && !/^(?:Salle|WC)/.test(cur.titre) ? lineRoom : (cur ? cur.titre : (lineRoom || "Travaux")));
-    getSec(titre).lignes.push(ligne);
+    const sec = getSec(titre);
+    if (!isFourn) {
+      const dt = tokens(desc);
+      // bavardage : ni action, ni chiffre, ni prestation reconnue → non retenu
+      if (!ligne.biblio_id && am.quantite === null && am.pu === null && (!dt.some(t => ACTIONS.has(t)) || dt.length > 14)) { notes.push(`Phrase non retenue : « ${raw.slice(0, 90)}${raw.length > 90 ? "…" : ""} »`); continue; }
+      // déjà couvert par la ligne précédente (« je vais le poncer » après « ponçage et vitrification »)
+      if (lastLine && am.quantite === null && am.pu === null && dt.length && dt.length <= 4 && dt.some(t => ACTIONS.has(t)) && dt.filter(t => ACTIONS.has(t)).every(t => tokens(lastLine.designation).includes(t)) && !match(index, desc).some(m => m.score >= 0.42 && m.b.id !== lastLine.biblio_id)) continue;
+      // même prestation dictée deux fois sans quantité : on fusionne
+      if (ligne.biblio_id && am.quantite === null && sections.some(sc => sc.lignes.some(x => x.biblio_id === ligne.biblio_id))) continue;
+      // peinture d'une pièce décrite par sa surface au sol et sa hauteur
+      if (F.sol && am.quantite === null && dt.includes("peintur") && !F.peintFaite) {
+        const murs = Math.round(4 * Math.sqrt(F.sol) * (F.hauteur || 2.5) * 10) / 10;
+        const bm = findBib("peinture des murs"), bp = findBib("peinture des plafonds");
+        const ext = [];
+        const nc = x => F.couches && F.couches !== 2 ? x.replace(/\b2 couches\b/g, `${F.couches} couches`) : x;
+        const lm = bm ? fromBib(bm, { quantite: murs, unite: "m²", raw }) : Object.assign({}, ligne, { designation: "Peinture des murs", quantite: murs, unite: "m²" });
+        const lp = bp ? fromBib(bp, { quantite: F.sol, unite: "m²", raw }) : Object.assign({}, ligne, { designation: "Peinture du plafond", quantite: F.sol, unite: "m²" });
+        lm.details = lm.details.concat([`Surface estimée : pièce de ${String(F.sol).replace(".", ",")} m² au sol, hauteur ${String(F.hauteur || 2.5).replace(".", ",")} m (à vérifier, ouvertures non déduites)`], ext);
+        if (F.couches) lp.details = lp.details.concat(ext);
+        for (const L of [lm, lp]) { L.designation = nc(L.designation); L.details = L.details.map(nc); }
+        if (F.couches && F.couches > 2) notes.push(`${F.couches} couches demandées : le prix catalogue est prévu pour 2 couches, ajustez le prix au m² si besoin.`);
+        sec.lignes.push(lm, lp); lastLine = lp; F.peintFaite = true;
+        notes.push(`Peinture : ${String(murs).replace(".", ",")} m² de murs calculés pour une pièce carrée de ${F.sol} m² au sol et ${String(F.hauteur || 2.5).replace(".", ",")} m de hauteur. Mesurez sur place et corrigez si besoin.`);
+        if (F.hauteur && F.hauteur < 2.2) notes.push(`Hauteur sous plafond de ${String(F.hauteur).replace(".", ",")} m : inhabituelle, vérifiez la dictée.`);
+        continue;
+      }
+      // sol (parquet, carrelage, ragréage) sans quantité : surface au sol dictée
+      if (F.sol && ligne.quantite === null && ligne.unite === "m²" && dt.some(t => /^(?:parquet|sol|carrel|ragreag|vitrif)/.test(t))) { ligne.quantite = F.sol; ligne.details = ligne.details.concat([`Surface au sol : ${String(F.sol).replace(".", ",")} m²`]); }
+    }
+    sec.lignes.push(ligne); lastLine = ligne;
   }
   // ordre : Mise en œuvre / pièces / Travaux / Fournitures
-  sections.sort((a, b) => (a.titre === "Fournitures") - (b.titre === "Fournitures"));
+  const rank = t => t === "Fournitures" ? 2 : t === "Frais de chantier" ? 1 : 0;
+  sections.sort((a, b) => rank(a.titre) - rank(b.titre));
   if (!objet) {
-    const rooms = sections.map(s => s.titre).filter(t => !["Travaux", "Fournitures"].includes(t));
+    const rooms = sections.map(s => s.titre).filter(t => !["Travaux", "Fournitures", "Frais de chantier"].includes(t));
     objet = rooms.length ? "Travaux de rénovation : " + rooms.slice(0, 3).map(r => r.toLowerCase()).join(", ") + (rooms.length > 3 ? "…" : "")
       : (sections[0]?.lignes[0]?.designation ? sections[0].lignes[0].designation : "Travaux de rénovation");
   }
