@@ -1,0 +1,66 @@
+{
+ "avant": {
+  "train": {
+   "dictees": 40,
+   "parfaites": 2.5,
+   "rappel": 37.4,
+   "precision": 70.3,
+   "quantites": 68,
+   "prixDictes": 50,
+   "fournComprise": 100,
+   "fournRappel": 60,
+   "fournPrecision": 100,
+   "fournExactes": 66.7,
+   "prixInventes": 0,
+   "clientNom": 80,
+   "clientAdresse": 87.5,
+   "clientVille": 92.1,
+   "duree": 97.5,
+   "tva": 97.5,
+   "tempsMoyenMs": 7.84,
+   "tempsMaxMs": 37.45
+  },
+  "test": {
+   "dictees": 25,
+   "parfaites": 4,
+   "rappel": 29.2,
+   "precision": 63.4,
+   "quantites": 63,
+   "prixDictes": 0,
+   "fournComprise": 0,
+   "fournRappel": 20,
+   "fournPrecision": 100,
+   "fournExactes": 100,
+   "prixInventes": 0,
+   "clientNom": 80,
+   "clientAdresse": 92,
+   "clientVille": 100,
+   "duree": 100,
+   "tva": 96,
+   "tempsMoyenMs": 5.31,
+   "tempsMaxMs": 7.07
+  }
+ },
+ "valid_premier_passage": {
+  "valid": {
+   "dictees": 22,
+   "parfaites": 50,
+   "rappel": 86.9,
+   "precision": 82,
+   "quantites": 100,
+   "prixDictes": 100,
+   "fournComprise": 100,
+   "fournRappel": 100,
+   "fournPrecision": 66.7,
+   "fournExactes": 100,
+   "prixInventes": 0,
+   "clientNom": 100,
+   "clientAdresse": 100,
+   "clientVille": 100,
+   "duree": 95.5,
+   "tva": 100,
+   "tempsMoyenMs": 10.24,
+   "tempsMaxMs": 48
+  }
+ }
+}

@@ -1,2 +1,6 @@
-test/
 *.log
+test/*.png
+test/*.pdf
+test/*.csv
+test/__pycache__/
+node_modules/
