@@ -13,6 +13,10 @@ async def main():
         await pg.click("[data-a='tab'][data-v='reglages']"); await pg.set_input_files("[data-a='cat-import']", CAT); await pg.wait_for_timeout(2600)
         # revue des prix
         await pg.click("[data-a='tab'][data-v='biblio']"); n0 = await pg.evaluate("S.biblio.filter(prixIndicatif).length"); check("prix indicatifs repérés", n0 > 250, n0)
+        txt = await pg.inner_text("#main"); check("compteur total et filtres", "405 prestations au total" in txt and "Créées par la dictée" not in txt and "Prix du marché" in txt, txt[:200])
+        await pg.select_option("[data-lib='cat']", "Électricité"); await pg.wait_for_timeout(200); nE = await pg.evaluate("document.querySelectorAll('#main .card.list .it').length"); check("filtre par catégorie", nE == await pg.evaluate("S.biblio.filter(b=>b.metier==='Électricité').length") and nE > 20, nE)
+        await pg.click("[data-a='lib-ori'][data-v='moi']"); await pg.wait_for_timeout(200); check("filtre « Mes tarifs » dans la catégorie", await pg.evaluate("document.querySelectorAll('#main .card.list .it').length") == await pg.evaluate("S.biblio.filter(b=>b.metier==='Électricité'&&b.origine!=='marché'&&b.origine!=='auto'&&b.origine!=='manuel').length"))
+        await pg.select_option("[data-lib='cat']", ""); await pg.click("[data-a='lib-ori'][data-v='']")
         await pg.click("[data-a='pv-mode'][data-v='1']"); first = await pg.evaluate("document.querySelector('[data-pv]').dataset.pv")
         await pg.fill(f"[data-pv='{first}']", "123,5"); await pg.click(f"[data-a='pv-ok'][data-id='{first}']"); await pg.wait_for_timeout(200)
         check("prix corrigé et validé", await pg.evaluate(f"(b=>b.pu===123.5&&b.verifie===true)(S.biblio.find(x=>x.id==='{first}'))"))
@@ -25,6 +29,10 @@ async def main():
         brut = await pg.evaluate("totaux(S.draft).ht"); await pg.fill("[data-rem='val']", "10"); await pg.wait_for_timeout(150)
         t = await pg.evaluate("totaux(S.draft)"); check("remise 10 %", abs(t["ht"] - round(brut * 0.9, 2)) < 0.011 and abs(t["remise"] - round(brut * 0.1, 2)) < 0.011, t)
         check("remise affichée dans les totaux", "Remise 10 %" in await pg.inner_text(".totals"))
+        ht1 = (await pg.evaluate("totaux(S.draft)"))["ht"]; l0 = await pg.evaluate("lineTotal(S.draft.sections[0].lignes[0])")
+        await pg.fill("[data-l='remise'] >> nth=0", "20"); await pg.wait_for_timeout(200)
+        l1 = await pg.evaluate("lineTotal(S.draft.sections[0].lignes[0])"); ht2 = (await pg.evaluate("totaux(S.draft)"))["ht"]
+        check("remise de 20 % sur une seule prestation, cumulée avec la remise globale", abs(l1 - round(l0 * 0.8, 2)) < 0.011 and abs((ht1 - ht2) - round((l0 - l1) * 0.9, 2)) < 0.02, (l0, l1, ht1, ht2))
         # lecture du devis fournisseur
         await pg.set_input_files("[data-a='pj-add']", "/tmp/fournisseur_ttc.pdf"); await pg.wait_for_timeout(500)
         await pg.click("[data-a='pj-read']"); await pg.wait_for_timeout(1800)
@@ -48,7 +56,7 @@ async def main():
         await pg.mouse.up(); await pg.click("[data-a='sign-ok']"); await pg.wait_for_timeout(400)
         check("signature enregistrée, devis accepté", await pg.evaluate("!!S.draft.signature && S.draft.signature.img.startsWith('data:image/png') && etatOf(S.draft)==='accepte' && S.draft.etatDates.accepte===todayISO()"))
         async with pg.expect_download() as dl: await pg.click("[data-a='pdf-dl']")
-        d = await dl.value; await d.save_as("test/x_devis.pdf"); check("PDF avec remise et signature", os.path.getsize("test/x_devis.pdf") > 20000 and "ACCEPTE" in d.suggested_filename, d.suggested_filename)
+        d = await dl.value; await d.save_as("test/x_devis.pdf"); check("PDF avec remises et signature", "remise 20" in __import__("subprocess").run(["pdftotext", "test/x_devis.pdf", "-"], capture_output=True, text=True).stdout and os.path.getsize("test/x_devis.pdf") > 20000 and "ACCEPTE" in d.suggested_filename, d.suggested_filename)
         # avenant
         await pg.click("[data-a='avenant']"); await pg.wait_for_timeout(300)
         check("avenant créé (numéro, client, lien)", await pg.evaluate(f"S.draft.numero==='{num}-A1' && S.draft.client.nom==='Mme Tessier' && !!S.draft.avenantDe && S.draft.statut==='brouillon'"))

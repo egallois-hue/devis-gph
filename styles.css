@@ -44,7 +44,7 @@ textarea.dict{min-height:240px;font-size:17px}
 .line .hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .line .num{width:24px;height:24px;border-radius:50%;background:var(--roi-l);color:var(--roi);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none}
 .line .tot{margin-left:auto;font-weight:700;color:var(--roi);white-space:nowrap}
-.line .grid{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:8px;margin-top:8px}
+.line .grid{display:grid;grid-template-columns:1fr 1fr 1.3fr .8fr;gap:8px;margin-top:8px}
 .line .grid label{font-size:11px;color:var(--grey);display:block;margin-bottom:2px}
 .line .grid input,.line .grid select{width:100%;border:1.5px solid var(--line);border-radius:9px;padding:9px;background:#fff}
 .line .grid input.need{border-color:var(--warn);background:var(--warn-l)}
@@ -171,3 +171,4 @@ label.fc{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:8px;f
 .signed{display:flex;gap:14px;align-items:center}.signed img{max-width:150px;max-height:80px;border:1px solid var(--line);border-radius:10px;padding:6px;background:#fff}
 .it.pv{gap:8px;align-items:center}.it.pv input{width:92px;flex:none;text-align:right;padding:8px}.it.pv .btn{flex:none}
 .lf .it{gap:10px;cursor:pointer}.lf input{width:20px;height:20px;flex:none}
+.lib-count{font-size:13px;color:var(--grey);margin:0 2px 8px}.lib-count b{color:var(--ink)}

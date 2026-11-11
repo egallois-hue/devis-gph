@@ -298,5 +298,47 @@
    "tempsMoyenMs": 23.91,
    "tempsMaxMs": 30.52
   }
+ },
+ "v19": {
+  "train": {
+   "dictees": 69,
+   "parfaites": 100,
+   "rappel": 100,
+   "precision": 100,
+   "quantites": 100,
+   "prixDictes": 100,
+   "fournComprise": 100,
+   "fournRappel": 100,
+   "fournPrecision": 100,
+   "fournExactes": 100,
+   "prixInventes": 0,
+   "clientNom": 100,
+   "clientAdresse": 100,
+   "clientVille": 100,
+   "duree": 100,
+   "tva": 100,
+   "tempsMoyenMs": 34.17,
+   "tempsMaxMs": 160.55
+  },
+  "test": {
+   "dictees": 25,
+   "parfaites": 84,
+   "rappel": 95.5,
+   "precision": 97.7,
+   "quantites": 98.8,
+   "prixDictes": 100,
+   "fournComprise": 100,
+   "fournRappel": 100,
+   "fournPrecision": 83.3,
+   "fournExactes": 100,
+   "prixInventes": 0,
+   "clientNom": 100,
+   "clientAdresse": 100,
+   "clientVille": 100,
+   "duree": 100,
+   "tva": 100,
+   "tempsMoyenMs": 28.73,
+   "tempsMaxMs": 38.55
+  }
  }
 }

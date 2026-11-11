@@ -112,6 +112,10 @@ function normalizeOral(src) {
   const DIMW = "(?:\\s+de\\s+(?:long(?:ueur)?|large(?:ur)?|haut(?:eur)?))";
   t = t.replace(new RegExp("(\\d+(?:,\\d+)?)\\s*m" + DIMW + "?\\s+(sur|par|x|fois)\\s+(\\d+(?:,\\d+)?)\\s*m(?![²³l\\w])" + DIMW + "?", "gi"), (m, a, op, b) => {
     const s = r2(nb(a) * nb(b)); notes.push(`Surface calculée : ${a} m × ${b} m = ${fr(s)} m².`); return fr(s) + " m²"; });
+  // « la salle de bain fait 5 m sur 3 » : surface au sol ET périmètre (murs exacts ensuite)
+  t = t.replace(new RegExp("(" + PIECES + ")\\s+(?:qui\\s+)?(?:fait|mesure)\\s+(\\d+(?:,\\d+)?)\\s*m?\\s+(?:de\\s+long\\s+)?(?:sur|par|x)\\s+(\\d+(?:,\\d+)?)\\s*m?(?:\\s+de\\s+large)?(?![\\d,.²³]|\\s*(?:m²|m³|ml|cm|mm|€|%))", "gi"), (m, piece, a, b) => {
+    const A = nb(a), B = nb(b); if (A > 30 || B > 30) return m; notes.push(`${piece.replace(/^(?:la|le|les|l')\s*/i, "").replace(/^./, c => c.toUpperCase())} : ${a} m × ${b} m = ${fr(r2(A * B))} m² au sol, ${fr(r2(2 * (A + B)))} m de tour.`);
+    return `${piece} fait ${fr(r2(A * B))} m² ⟦peri:${r2(2 * (A + B))}⟧`; });
   t = t.replace(new RegExp("((?:fait|font|mesure|mesurent|de)\\s+)(\\d+(?:,\\d+)?)\\s*m\\s+(?:sur|par)\\s+(\\d+(?:,\\d+)?)(?![\\d,.]|\\s*(?:m²|m³|ml|m|cm|mm|€|%|" + COUNT_NOUNS + ")(?![\\wà-ÿ]))", "gi"), (m, pre, a, b) => {
     const s = r2(nb(a) * nb(b)); notes.push(`Surface calculée : ${a} m × ${b} m = ${fr(s)} m².`); return pre + fr(s) + " m²"; });
   // corrections à l'oral : « 12 m² non pardon 14 m² » → « 14 m² »
@@ -850,6 +854,8 @@ function sansComplement(t) {      // { txt, lieu } : texte utile à la recherche
 }
 const tokensLight = t => /[a-zà-ÿ]{3,}/i.test(String(t || "").replace(/^(?:une?|le|la|les|des|du|de|et|avec)\s+/i, ""));
 
+const PIECES = "(?:la\\s+|le\\s+|les\\s+|l')?(?:salles?\\s+de\\s+bains?|salles?\\s+d'eau|salles?\\s+de\\s+douches?|chambres?(?:\\s+\\d)?|cuisine|salon|s[ée]jour|salle\\s+[àa]\\s+manger|pi[eè]ce|bureau|entr[ée]e|couloir|wc|toilettes|garage|buanderie|cellier|dressing|v[ée]randa|studio|appartement)";
+
 /* ---------- Analyse complète ---------- */
 function analyse(dictee, biblio, opts) {
   opts = opts || {};
@@ -911,7 +917,7 @@ function analyse(dictee, biblio, opts) {
              .replace(new RegExp(NB + "(?:premi[eè]re|deuxi[eè]me|seconde|troisi[eè]me|quatri[eè]me|autre|derni[eè]re)\\s+pi[eè]ce" + NA, "gi"), " ¶ ")
              .replace(new RegExp(NB + "(?:sur|dans|pour|toujours\\s+dans)\\s+(?:la\\s+m[eê]me|cette)\\s+pi[eè]ce" + NA, "gi"), " ");
   // « la salle de bain fait 15 m² » : surface au sol de la pièce ; « sur toute la hauteur du mur qui fait 2,50 m » : hauteur
-  body = body.replace(new RegExp(NB + "((?:la\\s+|le\\s+|les\\s+|l')?(?:salles?\\s+de\\s+bains?|salles?\\s+d'eau|salles?\\s+de\\s+douches?|chambres?(?:\\s+\\d)?|cuisine|salon|s[ée]jour|salle\\s+[àa]\\s+manger|pi[eè]ce|bureau|entr[ée]e|couloir|wc|toilettes|garage|buanderie|cellier|dressing|v[ée]randa|studio|appartement))\\s+(?:fait|mesure|c'est)\\s+(\\d+(?:,\\d+)?)\\s*m²", "gi"), (m, r, a) => ` ¶ ${r} ⟦sol:${nb(a)}⟧ ¶ `)
+  body = body.replace(new RegExp(NB + "(" + PIECES + ")\\s+(?:qui\\s+)?(?:fait|mesure|c'est)\\s+(\\d+(?:,\\d+)?)\\s*m²(?:\\s*⟦peri:([\\d.]+)⟧)?", "gi"), (m, r, a, pe) => ` ¶ ${r} ⟦sol:${nb(a)}⟧${pe ? "⟦peri:" + pe + "⟧" : ""} ¶ `)
              .replace(new RegExp("(?:sur\\s+)?toute\\s+la\\s+hauteur(?:\\s+(?:du|des)\\s+murs?)?(?:\\s+(?:qui\\s+(?:fait|font)|soit|de|donc))?((?:\\s+\\d+(?:,\\d+)?\\s*m(?![²³l\\wà-ÿ]))+)?", "gi"), (m, hs) => { const all = hs ? hs.match(/\d+(?:,\d+)?/g) : null; return all ? ` ⟦haut:${nb(all[all.length - 1])}⟧ ` : " "; });
   // surface au sol et hauteur sous plafond : marqueurs rattachés ensuite à la pièce
   { const Nn = "(\\d+(?:,\\d+)?)";
@@ -948,6 +954,7 @@ function analyse(dictee, biblio, opts) {
     if (/^⟦/.test(Rr.trim()) || /⟦/.test(Lr) && !tokens(Lr.replace(/⟦[^⟧]*⟧/g, "")).length) return false;
     const L = sig(Lr), R = sig(Rr);
     if (!L.tk.length) return false;
+    if (L.zones.length && R.zones.length && R.others.length && L.others.length && L.zones.join() !== R.zones.join()) return false;
     if (!R.tk.length) return /\d/.test(Rr) && L.tk.length > 0 ? "qte" : false;
     if (!hl && L.acts.length && !L.others.length && !L.zones.length && R.acts.length) { const j = decide(matchTokens(index, L.tk.concat(R.tk))); if (j.ok) { const e = index.byId.get(j.best.b.id); if (L.acts.every(a => e.U.has(a)) && R.acts.some(a => e.U.has(a))) return true; } }
     if (L.acts.includes("protect") && !hr && !hl && R.acts.every(a => a === "nettoy" || a === "evacu" || a === "protect") && R.others.every(t => t === "chanti" || t === "dechet" || t === "dechetteri" || t === "gravat" || t === "finchantier")) return true;
@@ -1016,7 +1023,7 @@ function analyse(dictee, biblio, opts) {
   const roomLines = {};          // lignes créées par pièce (pour « pareil pour la chambre 2 »)
   // faits par pièce (premier passage)
   { let room = null; const set = (r, k, v) => { const key = r || "*"; (F.rooms[key] = F.rooms[key] || {})[k] = v; if (!F.first) F.first = F.rooms[key]; };
-    for (const s of merged) { const rm = roomOf(s.raw.replace(/⟦[^⟧]*⟧/g, " ")); if (rm) room = rm.name; for (const m of s.raw.matchAll(/⟦(sol|haut):([\d.]+)⟧/g)) set(room, m[1], Number(m[2])); } }
+    for (const s of merged) { const rm = roomOf(s.raw.replace(/⟦[^⟧]*⟧/g, " ")); if (rm) room = rm.name; for (const m of s.raw.matchAll(/⟦(sol|haut|peri):([\d.]+)⟧/g)) set(room, m[1], Number(m[2])); } }
   const factsFor = room => F.rooms[room] || (Object.keys(F.rooms).length === 1 ? F.first : null) || F.rooms["*"] || null;
   const paintDone = new Set();
 
@@ -1102,6 +1109,8 @@ function analyse(dictee, biblio, opts) {
     if (!raw) continue;
 
     { const cz = raw.match(/^(?:de\s+|pris\s+|achet[ée]e?s?\s+)?chez\s+((?:[A-ZÀ-Ý][\wà-ÿ'-]*\s*){1,3})$/); if (cz && lastLine) { lastLine.details = (lastLine.details || []).concat(["Fournisseur : " + cz[1].trim()]); continue; } }
+    if (/^(?:avec\s+)?(?:une?\s+|des\s+|les\s+)?(?:vitres?|parois?|portes?)\s+(?:vitr[ée]e?s?\s+)?coulissan\w*$/i.test(raw) && lastLine && /douche|receveur|bac/i.test((lastLine.raw || "") + " " + lastLine.designation)) raw = "pose paroi de douche coulissante";
+    if (/[ée]viers?/i.test(raw) && /^(?:Salle de bains|Salle de douche|WC)$/.test(baseOf(headerRoom || inlineRoom || ""))) { raw = raw.replace(/l'[ée]vier/gi, "le lavabo").replace(/[ée]vier/gi, "lavabo"); if (!notes.includes("« Évier » dans une salle de bains : compris comme le lavabo.")) notes.push("« Évier » dans une salle de bains : compris comme le lavabo."); }
     if (TILE_CTX.test(raw)) raw = raw.replace(/\s+(?:pause|pose)$/i, "");
     const tile = extractTile(raw, !!seg.tileMod); raw = tile.txt || raw;
     if (seg.tileMod && lastLine && lastLine.tile) { applyTile(lastLine, Object.assign({}, lastLine.tile, { fmt: tile.fmt || lastLine.tile.fmt, tier: tile.tier || lastLine.tile.tier, jointFin: tile.jointFin || lastLine.tile.jointFin, epoxy: tile.epoxy || lastLine.tile.epoxy, pose: tile.pose || lastLine.tile.pose }), true); continue; }
@@ -1182,9 +1191,9 @@ function analyse(dictee, biblio, opts) {
         if (zs.length === 2) { const a = mk("peinture des murs", qM), b = mk("peinture des plafonds", null); made.push(a, b); notes.push(`« ${raw} » : la surface a été mise sur les murs ; indiquez celle du plafond.`); }
         else made.push(mk(zs[0] === "plafond" ? "peinture des plafonds" : "peinture des murs", qM));
       } else if (fx && fx.sol && !paintDone.has(titre) && !(fx._fait && !room)) {
-        const h = fx.haut || 2.5, murs = Math.round(4 * Math.sqrt(fx.sol) * h * 10) / 10;
+        const h = fx.haut || 2.5, murs = Math.round((fx.peri || 4 * Math.sqrt(fx.sol)) * h * 10) / 10, forme = fx.peri ? `pièce de ${fr(fx.peri)} m de tour` : "pièce supposée carrée";
         if (!zs.length || zs.includes("mur")) { const sur = !!fx.haut, a = mk("peinture des murs", murs, { estime: !sur, estimeInfo: { sol: fx.sol, hauteur: h, murs, plus: 0, sur } }); if (a) { a.details = a.details.concat([sur ? `Surface calculée : pièce de ${fr(fx.sol)} m² au sol, hauteur ${fr(h)} m` : `Surface estimée : pièce de ${fr(fx.sol)} m² au sol, hauteur supposée ${fr(h)} m`]); made.push(a);
-          notes.push(sur ? `Peinture : ${fr(murs)} m² de murs calculés (${fr(fx.sol)} m² au sol, ${fr(h)} m de hauteur ; pièce supposée carrée, portes et fenêtres non déduites).` : `Peinture : hauteur sous plafond non dictée, ${fr(h)} m supposés : ${fr(murs)} m² de murs (pièce supposée carrée). Indiquez la hauteur ou la surface si besoin.`); if (fx.haut && fx.haut < 2.2) notes.push(`Hauteur sous plafond de ${fr(fx.haut)} m : inhabituelle, vérifiez la dictée.`); } }
+          notes.push(sur ? `Peinture : ${fr(murs)} m² de murs calculés (${fr(fx.sol)} m² au sol, ${fr(h)} m de hauteur ; ${forme}, portes et fenêtres non déduites).` : `Peinture : hauteur sous plafond non dictée, ${fr(h)} m supposés : ${fr(murs)} m² de murs (${forme}). Indiquez la hauteur ou la surface si besoin.`); if (fx.haut && fx.haut < 2.2) notes.push(`Hauteur sous plafond de ${fr(fx.haut)} m : inhabituelle, vérifiez la dictée.`); } }
         if (!zs.length || zs.includes("plafond")) made.push(mk("peinture des plafonds", fx.sol));
         paintDone.add(titre); fx._fait = true;
       } else if (fx && fx.sol && (paintDone.has(titre) || (fx._fait && !room))) { continue; }
@@ -1213,7 +1222,9 @@ function analyse(dictee, biblio, opts) {
     if (wantInherit) {
       const ms2 = matchTokens(index, [lastAction].concat(tk), am.compte ? null : am.unite, opt), d2 = decide(ms2);
       const parallel = /^soft/.test(seg.lead) && /^(?:le|la|les|l'|du|des|un|une|\d)/i.test(desc) && (ACT_GROUP[lastAction] || 0) >= 1 && (ACT_GROUP[lastAction] || 0) <= 3;
-      if (d2.ok && (!d.ok || !d.sure || d2.best.b.id === d.best.b.id || d2.best.score >= d.best.score + 0.1 || (parallel && d2.best.score >= d.best.score - 0.1))) { ms = ms2; d = d2; inherited = lastAction; }
+      const contra = lastAction === "cre" && d.ok && d2.best && d2.best.score >= 0.6 && /^(?:juxt|soft)/.test(seg.lead) && /^(?:une?|\d+)\s/i.test(desc) && d2.best.b.id !== d.best.b.id && index.byId.get(d.best.b.id).acts.size && !actCompat([lastAction], index.byId.get(d.best.b.id).acts);
+      if (contra && !d2.ok) { ms = ms2; d = Object.assign({}, d2, { ok: true, sure: false }); inherited = lastAction; }
+      else if (d2.ok && (!d.ok || !d.sure || d2.best.b.id === d.best.b.id || d2.best.score >= d.best.score + 0.1 || (parallel && d2.best.score >= d.best.score - 0.1) || contra)) { ms = ms2; d = d2; inherited = lastAction; }
     }
     if (humid && tk.includes("carrelag") === false && false) {}
     let learned = false;
@@ -1268,6 +1279,8 @@ function analyse(dictee, biblio, opts) {
         const b = eN.b; Object.assign(lastLine, { designation: b.designation, details: (b.details || []).slice(), biblio_id: b.id }); if (lastLine.source !== "dicte") { lastLine.pu = b.pu ?? null; lastLine.source = lastLine.pu === null ? "a_saisir" : "bibliotheque"; }
         if (b.unite === "forfait" && (lastLine.quantite === null || lastLine.quantite === 1)) { lastLine.quantite = 1; lastLine.unite = "forfait"; }
         lastLine.raw += " " + raw; lastLineSi = si; if (acts.length) lastAction = acts.find(a => a !== "refect") || acts[0]; continue; } }
+    if (inherited && ligne.biblio_id && lastLine && lastLine.type === "mo" && lastLine.biblio_id && lastLine.biblio_id !== ligne.biblio_id && lastLineSi >= si - 1 && am.quantite === null && am.pu === null && others.length) {
+      const dl = new Set(tokens(lastLine.designation)); if (others.every(t => dl.has(t))) { lastLine.raw += " " + raw; lastLineSi = si; continue; } }
     const sec = getSec(titre);
     // même prestation dictée deux fois
     if (ligne.biblio_id) {
@@ -1318,15 +1331,15 @@ function analyse(dictee, biblio, opts) {
       if (!sol) { const fl = sec.lignes.find(l => l.type === "mo" && l.unite === "m²" && l.quantite !== null && !l.estime && zoneDe(l) === "sol"); const qs = new Set(sec.lignes.filter(l => l.type === "mo" && l.unite === "m²" && l.quantite !== null && !l.estime && zoneDe(l) === "sol").map(l => l.quantite));
         if (fl && (sec.titre !== "Travaux" || qs.size === 1)) { sol = fl.quantite; deduit = true; } }
       if (!sol) continue;
-      const h = fx.haut || (F.rooms["*"] && F.rooms["*"].haut) || 2.5, murs = Math.round(4 * Math.sqrt(sol) * h * 10) / 10; let nM = 0, nS = 0;
+      const h = fx.haut || (F.rooms["*"] && F.rooms["*"].haut) || 2.5, murs = Math.round((fx.peri || 4 * Math.sqrt(sol)) * h * 10) / 10, forme = fx.peri ? `pièce de ${fr(fx.peri)} m de tour` : "pièce supposée carrée"; let nM = 0, nS = 0;
       const sur = !!(fx.haut || (F.rooms["*"] && F.rooms["*"].haut));        // surface au sol ET hauteur connues : calcul direct, sans question
       for (const l of sec.lignes) { if (l.type !== "mo" || l.unite !== "m²" || l.quantite !== null) continue; const z = zoneDe(l); if (!z) continue;
         if (sec.titre === "Travaux" && deduit && z !== "sol") continue;       // sans pièce nommée : seules les lignes de sol reprennent la surface
         if (z === "sol" || z === "plafond") { l.quantite = sol; l.details = (l.details || []).concat([`Surface ${z === "sol" ? "au sol" : "du plafond"} : ${fr(sol)} m²`]); nS++; }
         else { l.quantite = r2(murs + (z === "mur" ? 0 : sol)); l.estime = !sur; l.estimeInfo = { sol, hauteur: h, murs, plus: z === "mur" ? 0 : sol, sur };
           l.details = (l.details || []).concat([sur ? `Surface calculée : ${fr(murs)} m² de murs (pièce de ${fr(sol)} m² au sol, hauteur ${fr(h)} m)${z === "mur" ? "" : ` + ${fr(sol)} m² au sol`}` : `Surface estimée : pièce de ${fr(sol)} m² au sol, hauteur supposée ${fr(h)} m`]); nM++; } }
-      if (nM) notes.push(sur ? `${sec.titre} : ${fr(murs)} m² de murs calculés (${fr(sol)} m² au sol, ${fr(h)} m de hauteur ; pièce supposée carrée, portes et fenêtres non déduites).`
-                             : `${sec.titre} : hauteur sous plafond non dictée, ${fr(h)} m supposés : ${fr(murs)} m² de murs (pièce supposée carrée). Indiquez la hauteur ou la surface si besoin.`);
+      if (nM) notes.push(sur ? `${sec.titre} : ${fr(murs)} m² de murs calculés (${fr(sol)} m² au sol, ${fr(h)} m de hauteur ; ${forme}, portes et fenêtres non déduites).`
+                             : `${sec.titre} : hauteur sous plafond non dictée, ${fr(h)} m supposés : ${fr(murs)} m² de murs (${forme}). Indiquez la hauteur ou la surface si besoin.`);
       if (nS && deduit) notes.push(`${sec.titre} : ${fr(sol)} m² au sol repris pour les lignes sans surface.`); } }
   // format de carrelage dit une seule fois : vaut pour les autres lignes de pose
   { const tl = sections.flatMap(s => s.lignes).filter(l => l.tile); const withF = tl.filter(l => l.tile.fmt || l.tile.tier); const kinds = new Set(withF.map(l => l.tile.fmt ? l.tile.fmt.join("x") : l.tile.tier));

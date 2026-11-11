@@ -7,10 +7,23 @@
   /* ---------- Remise ---------- */
   window.remRows = (t, d) => t.remise ? `<div class="r"><span>Total HT avant remise</span><span>${eur(t.brut)}</span></div><div class="r"><span>Remise${d.remise.type === "eur" ? "" : " " + String(d.remise.val).replace(".", ",") + " %"}</span><span>− ${eur(t.remise)}</span></div>` : "";
   window.remiseCard = d => { const R = d.remise || { type: "pct", val: "" };
-    return `<div class="card"><h2>Remise commerciale</h2><div class="row"><div><label class="f">Type</label><select class="i" data-rem="type"><option value="pct" ${R.type !== "eur" ? "selected" : ""}>En % du total HT</option><option value="eur" ${R.type === "eur" ? "selected" : ""}>En € HT</option></select></div>
-      <div><label class="f">Montant</label><input class="i" data-rem="val" inputmode="decimal" placeholder="0" value="${esc(R.val ?? "")}"></div></div><div class="hint" style="margin-top:6px">Laissez vide s'il n'y a pas de remise. Elle apparaît sur le devis, avant la TVA.</div></div>`; };
+    return `<div class="card"><h2>Remise sur l'ensemble du devis</h2><div class="row"><div><label class="f">Type</label><select class="i" data-rem="type"><option value="pct" ${R.type !== "eur" ? "selected" : ""}>En % du total HT</option><option value="eur" ${R.type === "eur" ? "selected" : ""}>En € HT</option></select></div>
+      <div><label class="f">Montant</label><input class="i" data-rem="val" inputmode="decimal" placeholder="0" value="${esc(R.val ?? "")}"></div></div><div class="hint" style="margin-top:6px">Laissez vide s'il n'y a pas de remise. Elle apparaît sur le devis, avant la TVA. Pour une remise sur une seule prestation, utilisez le champ « Remise % » de sa ligne ; les deux peuvent se cumuler.</div></div>`; };
   function majTotaux() { const d = S.draft, t = totaux(d), box = document.querySelector(".totals"); if (!box) return;
     box.innerHTML = `${remRows(t, d)}<div class="r"><span>Total HT</span><span>${eur(t.ht)}</span></div><div class="r"><span>TVA ${String(d.tva).replace(".", ",")} %</span><span>${eur(t.tva)}</span></div><div class="r big"><span>Total TTC</span><span>${eur(t.ttc)}</span></div>${t.incomplet ? `<div class="r" style="color:#FFE0A3">${t.incomplet} ligne(s) sans prix ou quantité</div>` : ""}`; }
+
+  /* ---------- Onglet Prestations : filtres et compteurs ---------- */
+  const ORIG = [["", "Toutes"], ["moi", "Mes tarifs"], ["auto", "Créées par la dictée"], ["manuel", "Ajoutées à la main"], ["marche", "Prix du marché"], ["sansprix", "Prix à définir"], ["utilisees", "Déjà utilisées"]];
+  const origOf = b => b.origine === "auto" ? "auto" : b.origine === "manuel" ? "manuel" : b.origine === "marché" ? "marche" : "moi";
+  const okOrig = (b, o) => !o || (o === "sansprix" ? (b.pu === null || b.pu === undefined) : o === "utilisees" ? (b.uses || 0) > 0 : origOf(b) === o);
+  window.libFiltre = b => (!S.libCat || (b.metier || "Divers") === S.libCat) && okOrig(b, S.libOri || "");
+  window.libFiltres = function (nAff) {
+    const cats = {}; for (const b of S.biblio) if (okOrig(b, S.libOri || "")) cats[b.metier || "Divers"] = (cats[b.metier || "Divers"] || 0) + 1;
+    const inCat = b => !S.libCat || (b.metier || "Divers") === S.libCat, nInd = S.biblio.filter(prixIndicatif).length;
+    return `<div class="lib-count"><b>${S.biblio.length}</b> prestation${S.biblio.length > 1 ? "s" : ""} au total${nAff !== S.biblio.length && !S.revue ? ` · <b>${nAff}</b> affichée${nAff > 1 ? "s" : ""}` : ""} · ${Object.keys(cats).length} catégorie${Object.keys(cats).length > 1 ? "s" : ""}</div>
+      <select class="i" data-lib="cat" style="margin-bottom:10px"><option value="">Toutes les catégories</option>${Object.keys(cats).sort((a, b) => a.localeCompare(b)).map(c => `<option value="${esc(c)}" ${S.libCat === c ? "selected" : ""}>${esc(c)} (${cats[c]})</option>`).join("")}</select>
+      <div class="chips" style="margin-bottom:10px">${ORIG.map(o => { const n = S.biblio.filter(b => inCat(b) && okOrig(b, o[0])).length; return o[0] && !n ? "" : `<button class="chip ${!S.revue && (S.libOri || "") === o[0] ? "on" : ""}" data-a="lib-ori" data-v="${o[0]}">${o[1]} <b>${n}</b></button>`; }).join("")}${nInd || S.revue ? `<button class="chip ${S.revue ? "on" : ""}" data-a="pv-mode" data-v="1">À valider <b>${nInd}</b></button>` : ""}</div>
+      ${S.revue ? `<div class="banner w">Ces prix sont des estimations du marché, pas vos tarifs. Corrigez le prix si besoin puis touchez ✓. Un prix validé (ou utilisé dans un devis généré) devient le vôtre.</div>` : ""}`; };
 
   /* ---------- Statuts : dates réelles ---------- */
   window.setEtat = function (d, e, date) { d.etat = e; d.etatDates = Object.assign({}, d.etatDates, { [e]: date || todayISO() }); if (e === "envoye") d.dateEnvoi = d.etatDates[e]; };
@@ -67,7 +80,7 @@
     return `<div class="chips" style="margin-bottom:10px"><button class="chip ${S.revue ? "" : "on"}" data-a="pv-mode" data-v="">Toutes <b>${S.biblio.length}</b></button><button class="chip ${S.revue ? "on" : ""}" data-a="pv-mode" data-v="1">Prix indicatifs à valider <b>${n}</b></button></div>
       ${S.revue ? `<div class="banner w">Ces prix sont des estimations du marché, pas vos tarifs. Corrigez le prix si besoin puis touchez ✓. Un prix validé (ou utilisé dans un devis généré) devient le vôtre.</div>` : ""}`; };
   window.revueListe = function (q) {
-    const items = S.biblio.filter(prixIndicatif).filter(b => !q || norm(b.metier + " " + b.designation).includes(q)).sort((a, b) => (a.metier || "").localeCompare(b.metier || "") || a.designation.localeCompare(b.designation));
+    const items = S.biblio.filter(prixIndicatif).filter(b => !S.libCat || (b.metier || "Divers") === S.libCat).filter(b => !q || norm(b.metier + " " + b.designation).includes(q)).sort((a, b) => (a.metier || "").localeCompare(b.metier || "") || a.designation.localeCompare(b.designation));
     let g = null, html = "";
     for (const b of items) { if (b.metier !== g) { g = b.metier; const n = items.filter(x => x.metier === g).length; html += `<div class="lib-g" style="display:flex;justify-content:space-between;align-items:center">${esc(g || "Divers")}<button class="btn ghost sm" data-a="pv-all" data-m="${esc(g || "")}">Valider les ${n} tels quels</button></div>`; }
       html += `<div class="it pv"><div class="m"><div class="t" style="white-space:normal">${esc(b.designation)}</div><div class="s">par ${esc(b.unite)} · main-d'œuvre HT</div></div><input class="i" inputmode="decimal" data-pv="${b.id}" value="${esc(String(b.pu ?? "").replace(".", ","))}"><button class="btn sm" data-a="pv-ok" data-id="${b.id}">✓</button></div>`; }
@@ -163,6 +176,7 @@
         pad = null; closeModal(); await persistDraft(true); render(); toast("Devis signé : statut « Accepté »"); return true; }
       case "sign-del": if (d && confirm("Retirer la signature du client ?")) { delete d.signature; await persistDraft(true); render(); } return true;
       case "pv-mode": S.revue = !!el.dataset.v; render(); return true;
+      case "lib-ori": S.libOri = el.dataset.v; S.revue = false; render(); return true;
       case "pv-ok": await validerPrix([el.dataset.id]); return true;
       case "pv-all": await validerPrix(S.biblio.filter(b => prixIndicatif(b) && (b.metier || "") === el.dataset.m).map(b => b.id)); return true;
       case "pj-read": await lirePJ(Number(el.dataset.i)); return true;
@@ -176,9 +190,11 @@
     return false;
   };
   document.addEventListener("input", e => { const el = e.target, d = S.draft;
+    if (el.dataset && el.dataset.l === "remise" && d) setTimeout(() => { const l = d.sections[Number(el.dataset.si)].lignes[Number(el.dataset.li)]; l.remise = num(el.value); if (l.remise === null) delete l.remise; const c = el.closest(".line"), t = c && c.querySelector(".tot"); if (t) t.textContent = eur(lineTotal(l)); majTotaux(); persistDraft(); }, 0);
     if (el.dataset && el.dataset.rem === "val" && d) { d.remise = Object.assign({ type: "pct" }, d.remise, { val: el.value.trim() === "" ? "" : num(el.value) }); if (d.remise.val === "" || d.remise.val === null) delete d.remise; majTotaux(); persistDraft(); } });
   document.addEventListener("change", e => { const el = e.target, d = S.draft; if (!el.dataset) return;
     if (el.dataset.rem === "type" && d) { d.remise = Object.assign({ val: "" }, d.remise, { type: el.value }); majTotaux(); persistDraft(); }
     if (el.dataset.etd && d) { const k = etatOf(d); if (k && el.value) { d.etatDates = Object.assign({}, d.etatDates, { [k]: el.value }); if (k === "envoye") d.dateEnvoi = el.value; persistDraft(true); } }
+    if (el.dataset.lib === "cat") { S.libCat = el.value; render(); }
     if (el.dataset.lf !== undefined && lecture) lecture.sel[Number(el.dataset.lf)] = el.checked; });
 })();

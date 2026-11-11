@@ -75,7 +75,8 @@ function nextNumero(iso) {
 }
 
 /* ===================== Calculs ===================== */
-function lineTotal(l) { const q = num(l.quantite), p = num(l.pu); return (q === null || p === null) ? null : r2(q * p); }
+function lineRemise(l) { const r = num(l.remise); return r && r > 0 ? Math.min(100, r) : 0; }
+function lineTotal(l) { const q = num(l.quantite), p = num(l.pu); return (q === null || p === null) ? null : r2(q * p * (1 - lineRemise(l) / 100)); }
 function totaux(d) {
   let ht = 0, incomplet = 0;
   for (const s of d.sections) for (const l of s.lignes) { const t = lineTotal(l); if (t === null) incomplet++; else ht = r2(ht + t); }
@@ -346,7 +347,7 @@ function viewList() {
 /* ===================== Vue : bibliothèque ===================== */
 function viewBiblio() {
   const q = norm(S.qb || "");
-  const items = S.biblio.filter(b => !q || norm(b.metier + " " + b.designation).includes(q))
+  const items = S.biblio.filter(b => !q || norm(b.metier + " " + b.designation + " " + (b.aliases || []).join(" ")).includes(q)).filter(libFiltre)
     .sort((a, b) => (a.metier || "").localeCompare(b.metier || "") || (b.uses || 0) - (a.uses || 0));
   let g = null, html = "";
   if (S.revue) html = revueListe(q); else
@@ -359,7 +360,7 @@ function viewBiblio() {
   return statusBanner() + `
   <div class="banner i">Vos prix de main-d'œuvre. Le moteur les reconnaît dans la dictée et les propose. À chaque devis généré, il apprend vos formulations, met à jour les prix réutilisés et ajoute les prestations nouvelles. Les fournitures n'ont jamais de prix ici.</div>
   <input class="i" placeholder="Rechercher une prestation…" value="${esc(S.qb || "")}" data-in="qb" style="margin-bottom:12px">
-  ${revueBandeau()}
+  ${libFiltres(items.length)}
   <div class="card list">${html || `<div class="empty">Aucune prestation.</div>`}</div>`;
 }
 function libModal(id) {
@@ -487,6 +488,7 @@ function editorStep2() {
             <div><label>Quantité</label><input inputmode="decimal" class="${needQ ? "need" : ""}" data-l="quantite" data-si="${si}" data-li="${li}" value="${nfr(num(l.quantite))}"></div>
             <div><label>Unité</label><select data-l="unite" data-si="${si}" data-li="${li}">${[...new Set([l.unite, ...UNITES])].filter(Boolean).map(u => `<option ${u === l.unite ? "selected" : ""}>${esc(u)}</option>`).join("")}</select></div>
             <div><label>${l.type === "fourniture" ? "Prix fournisseur HT" : "Prix unitaire HT"}</label><input inputmode="decimal" class="${needPu ? "need" : ""}" data-l="pu" data-si="${si}" data-li="${li}" value="${nfr(num(l.pu))}" placeholder="${l.type === "fourniture" ? "Prix du devis fournisseur" : "À saisir"}"></div>
+            <div><label>Remise %</label><input inputmode="decimal" data-l="remise" data-si="${si}" data-li="${li}" value="${nfr(num(l.remise))}" placeholder="0"></div>
           </div>
           ${l.type !== "fourniture" ? `<label class="fc"><input type="checkbox" data-a="lfc" data-si="${si}" data-li="${li}" ${l.fournitureComprise ? "checked" : ""}><span>Prix avec fournitures comprises<br><small class="hint">${l.fournitureComprise ? "Le prix inclut le matériel" : "Décoché : prix de la main-d'œuvre seule"}</small></span></label>` : ""}
           <div class="acts">
@@ -807,6 +809,7 @@ async function buildPDF(d) {
       tx(X_Q, ty, nfr(num(l.quantite)), "P", 8.6, INK, "right");
       tx(X_U + 14, ty, l.unite || "", "P", 8.6, INK, "center");
       tx(X_PU, ty, eur(num(l.pu)), "P", 8.6, INK, "right");
+      if (lineRemise(l)) tx(X_T, ty + 10.5, `remise ${nfr(lineRemise(l))} %`, "PL", 7.2, ROI, "right");
       tx(X_T, ty, eur(lineTotal(l)), "PM", 9, INK, "right");
       y += rh; stroke(LINE); doc.setLineWidth(0.6); doc.line(M, y, W - M, y);
     }
