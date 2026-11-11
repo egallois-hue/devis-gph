@@ -57,8 +57,8 @@ function exerciceKey(iso) { const [y, m] = iso.split("-").map(Number); return St
 function exerciceLabel(k) { return `${k}-${Number(k) + 1}`; }
 /* Suivi d'un devis émis */
 const ETATS = [["attente", "En attente", "grey"], ["envoye", "Envoyé", "b"], ["accepte", "Accepté", "g"], ["acompte1", "Acompte 1 reçu", "g"],
-  ["en_cours", "Chantier en cours", "w"], ["acompte2", "Acompte 2 reçu", "w"], ["fini", "Chantier fini", "b"], ["paye", "Payé", "ok"]];
-const ETAT_FICHIER = { attente: "EN-ATTENTE", envoye: "ENVOYE", accepte: "ACCEPTE", acompte1: "ACOMPTE-1-RECU", en_cours: "CHANTIER-EN-COURS", acompte2: "ACOMPTE-2-RECU", fini: "CHANTIER-FINI", paye: "PAYE" };
+  ["en_cours", "Chantier en cours", "w"], ["acompte2", "Acompte 2 reçu", "w"], ["fini", "Chantier fini", "b"], ["paye", "Payé", "ok"], ["refuse", "Refusé / sans suite", "r"]];
+const ETAT_FICHIER = { attente: "EN-ATTENTE", envoye: "ENVOYE", accepte: "ACCEPTE", acompte1: "ACOMPTE-1-RECU", en_cours: "CHANTIER-EN-COURS", acompte2: "ACOMPTE-2-RECU", fini: "CHANTIER-FINI", paye: "PAYE", refuse: "REFUSE" };
 function etatOf(d) { if (d.statut !== "finalise") return null; const e = d.etat === "fini_paye" ? "paye" : (d.etat || "attente"); return ETAT_FICHIER[e] ? e : "attente"; }
 /* « En retard » : automatique quand la fin annoncée est passée et que le chantier n'est pas fini */
 function isLate(d) { const e = etatOf(d); return !!(e && d.finPrevue && ["accepte", "acompte1", "en_cours", "acompte2"].includes(e) && todayISO() > d.finPrevue); }
@@ -79,12 +79,15 @@ function lineTotal(l) { const q = num(l.quantite), p = num(l.pu); return (q === 
 function totaux(d) {
   let ht = 0, incomplet = 0;
   for (const s of d.sections) for (const l of s.lignes) { const t = lineTotal(l); if (t === null) incomplet++; else ht = r2(ht + t); }
+  const brut = ht, R = d.remise, rv = R ? num(R.val) : null;
+  const remise = rv && rv > 0 ? (R.type === "eur" ? Math.min(brut, r2(rv)) : r2(brut * Math.min(100, rv) / 100)) : 0;
+  ht = r2(brut - remise);
   const taux = Number(d.tva ?? 10) / 100;
   const tva = r2(ht * taux), ttc = r2(ht + tva);
   const p = d.acomptes || S.cfg.acomptes || [40, 40, 20];
   const a1 = r2(ttc * p[0] / 100), a2 = r2(ttc * (p[1] || 0) / 100);
   const solde = r2(ttc - a1 - a2);
-  return { ht, tva, ttc, a1, a2, solde, incomplet, p };
+  return { ht, tva, ttc, a1, a2, solde, incomplet, p, brut, remise };
 }
 function problemes(d) {
   const out = [];
@@ -346,15 +349,17 @@ function viewBiblio() {
   const items = S.biblio.filter(b => !q || norm(b.metier + " " + b.designation).includes(q))
     .sort((a, b) => (a.metier || "").localeCompare(b.metier || "") || (b.uses || 0) - (a.uses || 0));
   let g = null, html = "";
+  if (S.revue) html = revueListe(q); else
   for (const b of items) {
     if (b.metier !== g) { g = b.metier; html += `<div class="lib-g">${esc(g || "Divers")}</div>`; }
     html += `<div class="it" data-a="lib-edit" data-id="${b.id}"><div class="m"><div class="t" style="white-space:normal">${esc(b.designation)}</div>
-      <div class="s">${b.origine === "auto" ? `<span class="pill w">Créée automatiquement</span> ` : b.origine === "manuel" ? `<span class="pill">Ajoutée</span> ` : ""}${b.pu === null || b.pu === undefined ? `<span class="pill w">Prix à définir</span> ` : ""}${b.uses ? `utilisée ${b.uses}×` : ""}</div></div>
+      <div class="s">${b.origine === "auto" ? `<span class="pill w">Créée automatiquement</span> ` : b.origine === "manuel" ? `<span class="pill">Ajoutée</span> ` : ""}${b.pu === null || b.pu === undefined ? `<span class="pill w">Prix à définir</span> ` : ""}${prixIndicatif(b) ? `<span class="pill w">Prix indicatif</span> ` : ""}${b.uses ? `utilisée ${b.uses}×` : ""}</div></div>
       <div class="a">${eur(b.pu)}<div class="s" style="text-align:right">/ ${esc(b.unite)}</div></div></div>`;
   }
   return statusBanner() + `
   <div class="banner i">Vos prix de main-d'œuvre. Le moteur les reconnaît dans la dictée et les propose. À chaque devis généré, il apprend vos formulations, met à jour les prix réutilisés et ajoute les prestations nouvelles. Les fournitures n'ont jamais de prix ici.</div>
   <input class="i" placeholder="Rechercher une prestation…" value="${esc(S.qb || "")}" data-in="qb" style="margin-bottom:12px">
+  ${revueBandeau()}
   <div class="card list">${html || `<div class="empty">Aucune prestation.</div>`}</div>`;
 }
 function libModal(id) {
@@ -375,7 +380,7 @@ async function libSave(id) {
     metier: $("#lb-metier").value.trim(), designation: $("#lb-des").value.trim(),
     details: $("#lb-det").value.split("\n").map(s => s.trim()).filter(Boolean),
     aliases: $("#lb-alias").value.split(",").map(s => s.trim()).filter(Boolean),
-    unite: $("#lb-u").value, pu: num($("#lb-pu").value), updatedAt: Date.now()
+    unite: $("#lb-u").value, pu: num($("#lb-pu").value), verifie: true, updatedAt: Date.now()
   });
   if (!b.designation) return toast("La désignation est vide.");
   if (old) Object.assign(old, b); else S.biblio.push(b);
@@ -413,6 +418,7 @@ function viewReglages() {
       : `<div class="hint">Demander Face ID ou Touch ID à l'ouverture de l'application, sur cet appareil.</div><button class="btn sec block" style="margin-top:8px" data-a="lock-on">Activer Face ID / Touch ID</button>`}
     ${S.uid ? `<div class="hint" style="margin-top:12px">Connecté : ${esc(S.session?.user?.email || "")}</div><button class="btn ghost block" data-a="logout">Se déconnecter</button>` : ""}
   </div>
+  ${backupCard()}
   <div class="card"><h2>Catalogue et sauvegarde</h2>
     <div class="hint">${S.biblio.length} prestation(s) enregistrée(s).</div>
     <label class="btn sec block" style="margin-top:8px">Importer un catalogue (fichier .json)<input type="file" accept=".json,application/json" hidden data-a="cat-import"></label>
@@ -485,6 +491,7 @@ function editorStep2() {
           ${l.type !== "fourniture" ? `<label class="fc"><input type="checkbox" data-a="lfc" data-si="${si}" data-li="${li}" ${l.fournitureComprise ? "checked" : ""}><span>Prix avec fournitures comprises<br><small class="hint">${l.fournitureComprise ? "Le prix inclut le matériel" : "Décoché : prix de la main-d'œuvre seule"}</small></span></label>` : ""}
           <div class="acts">
             ${l.source === "bibliotheque" ? `<span class="pill">Prix de vos prestations</span>` : l.source === "dicte" ? `<span class="pill g">Prix dicté</span>` : l.source === "saisi" ? `<span class="pill g">Prix saisi</span>` : needPu ? `<span class="pill w">${l.type === "fourniture" ? "Prix fournisseur à saisir" : "Prix à saisir"}</span>` : ""}
+            ${ligneIndicative(l) ? `<span class="pill w" title="Prix du marché, pas encore validé">Prix indicatif</span>` : ""}
             ${l.incertain ? `<span class="pill w" data-a="l-sug" data-si="${si}" data-li="${li}">À vérifier</span>` : ""}
             <span style="flex:1"></span>
             <button class="btn ghost sm" data-a="l-up" data-si="${si}" data-li="${li}">↑</button>
@@ -516,14 +523,16 @@ function editorStep2() {
   ${secs}
   <button class="btn sec block" data-a="sec-add" style="margin-bottom:14px">＋ Ajouter une partie</button>
   <div class="card"><h2>Devis fournisseurs (annexes)</h2>
-    <div class="hint" style="margin-bottom:10px">Photo ou PDF du devis fournisseur. Il est ajouté à la fin du devis. Reprenez les prix de ce devis dans les lignes « Fourniture ».</div>
+    <div class="hint" style="margin-bottom:10px">Photo ou PDF du devis fournisseur. Il est ajouté à la fin du devis. Pour un PDF, « Lire les prix » reprend ses lignes dans les fournitures ; pour une photo, recopiez les prix.</div>
     ${d.pj.map((p, i) => `<div class="pj">${p.type.startsWith("image") && S.pjCache[p.id]?.url ? `<img src="${S.pjCache[p.id].url}">` : `<div class="ic">${p.type.includes("pdf") ? "PDF" : "IMG"}</div>`}
       <div class="n">${esc(p.name)}${p.missing ? `<br><span class="pill w">Fichier à rejoindre</span>` : ""}</div>
+      ${p.type.includes("pdf") ? `<button class="btn ghost sm" data-a="pj-read" data-i="${i}">Lire les prix</button>` : ""}
       <button class="x" data-a="pj-del" data-i="${i}">✕</button></div>`).join("")}
     <label class="btn sec block" style="margin-top:4px">＋ Joindre un devis fournisseur<input type="file" accept="image/*,application/pdf" multiple hidden data-a="pj-add"></label>
   </div>
+  ${remiseCard(d)}
   <div class="totals">
-    <div class="r"><span>Total HT</span><span>${eur(t.ht)}</span></div>
+    ${remRows(t, d)}<div class="r"><span>Total HT</span><span>${eur(t.ht)}</span></div>
     <div class="r"><span>TVA ${String(d.tva).replace(".", ",")} %</span><span>${eur(t.tva)}</span></div>
     <div class="r big"><span>Total TTC</span><span>${eur(t.ttc)}</span></div>
     ${t.incomplet ? `<div class="r" style="color:#FFE0A3">${t.incomplet} ligne(s) sans prix ou quantité</div>` : ""}
@@ -540,7 +549,7 @@ function editorStep3() {
     <div class="kv"><div><b>${esc(d.client.nom)}</b></div><div class="hint">${esc(d.client.adresse)} ${esc(d.client.cpVille)}</div>
     <div class="hint">${esc(d.objet)}</div></div>
     <div class="totals" style="margin-top:12px">
-      <div class="r"><span>Total HT</span><span>${eur(t.ht)}</span></div><div class="r"><span>TVA ${String(d.tva).replace(".", ",")} %</span><span>${eur(t.tva)}</span></div>
+      ${remRows(t, d)}<div class="r"><span>Total HT</span><span>${eur(t.ht)}</span></div><div class="r"><span>TVA ${String(d.tva).replace(".", ",")} %</span><span>${eur(t.tva)}</span></div>
       <div class="r big"><span>Total TTC</span><span>${eur(t.ttc)}</span></div>
       <div class="r" style="margin-top:6px"><span>Acompte commande ${t.p[0]} %</span><span>${eur(t.a1)}</span></div>
       ${t.p[1] ? `<div class="r"><span>Acompte en cours ${t.p[1]} %</span><span>${eur(t.a2)}</span></div>` : ""}
@@ -548,9 +557,12 @@ function editorStep3() {
     ${d.pj.length ? `<div class="hint" style="margin-top:10px">${d.pj.length} devis fournisseur(s) en annexe.</div>` : `<div class="hint" style="margin-top:10px">Aucun devis fournisseur en annexe.</div>`}
   </div>
   ${d.statut === "finalise" ? `
+  ${d.avenantDe ? avenantHTML(d) : ""}
+  ${signHTML(d)}
   <div class="card"><h2>Suivi du devis</h2>
     ${isLate(d) ? `<div class="banner w" style="background:#FDECEC;color:var(--err)"><b>Chantier en retard</b> : la fin annoncée (${dFR(d.finPrevue)}) est passée.</div>` : ""}
     <div class="etats">${ETATS.map(x => `<button class="btn ${etatOf(d) === x[0] ? "" : "sec"} sm" data-a="etat" data-e="${x[0]}">${x[1]}${x[0] === "acompte1" ? " · " + eur(t.a1) : x[0] === "acompte2" && t.p[1] ? " · " + eur(t.a2) : x[0] === "paye" ? " · solde " + eur(t.solde) : ""}</button>`).join("")}</div>
+    ${etatDatesHTML(d)}
     <div class="row" style="margin-top:10px">
       <div><label class="f">Début des travaux</label><input class="i" type="date" data-dd="debut" value="${esc(d.debut || "")}"></div>
       <div><label class="f">Durée annoncée (jours ouvrés)</label><input class="i" data-dd="dureeJours" inputmode="decimal" value="${esc(d.dureeJours ?? "")}"></div></div>
@@ -567,6 +579,7 @@ function editorStep3() {
       <button class="btn ghost sm" data-a="copy-mail" style="margin-top:6px">Copier le texte du mail</button>
     </div>
   </div>
+  ${d.avenantDe ? "" : avenantHTML(d)}
   <div class="card"><button class="btn sec block" data-a="dup">Dupliquer ce devis</button><div style="height:8px"></div><button class="btn danger block" data-a="draft-del">Supprimer ce devis</button></div>` : `
   <div class="card"><div class="hint" style="margin-bottom:10px">La génération attribue le numéro <b>${d.numero || nextNumero(d.date).numero}</b>, enregistre le devis et met à jour vos prestations.</div>
   <button class="btn block" data-a="finalize" ${pb.length ? "disabled" : ""}>Générer le devis</button></div>
@@ -692,7 +705,7 @@ async function finalize() {
     let b = (l.biblio_id && S.biblio.find(x => x.id === l.biblio_id)) || S.biblio.find(x => norm(x.designation) === norm(l.designation) && x.unite === l.unite);
     const said = l.raw ? String(l.raw).replace(/\d+(?:[.,]\d+)?\s*(?:€|euros?|m2|m²|mètres?\s*carrés?|ml)?/gi, " ").replace(/\s+/g, " ").trim().slice(0, 80) : "";
     if (b && l.fournitureComprise && !b.fournitureComprise) { b = Object.assign({}, b, { uses: (b.uses || 0) + 1, lastUsed: Date.now() }); }
-    else if (b) { b = Object.assign({}, b, { pu: r2(num(l.pu) - (num(l.ajustCarrelage) || 0)), uses: (b.uses || 0) + 1, lastUsed: Date.now() }); if (!b.details?.length && l.details?.length) b.details = l.details;
+    else if (b) { b = Object.assign({}, b, { pu: r2(num(l.pu) - (num(l.ajustCarrelage) || 0)), verifie: true, uses: (b.uses || 0) + 1, lastUsed: Date.now() }); if (!b.details?.length && l.details?.length) b.details = l.details;
       if (said && !(b.aliases || []).some(a => norm(a) === norm(said))) b.aliases = [...(b.aliases || []), said].slice(-15); }
     else b = { id: uid(), metier: s.titre || "Divers", fournitureComprise: !!l.fournitureComprise, designation: l.designation, details: l.details || [], unite: l.unite, pu: num(l.pu), origine: "auto", uses: 1, lastUsed: Date.now(), createdAt: Date.now(), aliases: said ? [said] : [] };
     const i = S.biblio.findIndex(x => x.id === b.id); if (i >= 0) S.biblio[i] = b; else S.biblio.push(b);
@@ -730,14 +743,14 @@ async function buildPDF(d) {
     tx(x, 72, C.activites1, "PL", 8.6, [255, 255, 255]);
     tx(x, 84, C.activites2, "PL", 8.6, [255, 255, 255]);
     tx(x, 106, `${C.adresse}, ${C.cpVille}  ·  ${C.tel}`, "P", 7.8, [255, 255, 255]);
-    tx(W - M, 60, "DEVIS", "PB", 26, [255, 255, 255], "right");
+    tx(W - M, 60, d.avenantDe ? "AVENANT" : "DEVIS", "PB", 26, [255, 255, 255], "right");
     tx(W - M, 78, "N° " + d.numero, "PM", 10, [255, 255, 255], "right");
     return 146;
   }
   function header2() {
     band(54, false); logoCard(M, 7, 54, 40);
     tx(M + 66, 33, C.societe, "PB", 14, [255, 255, 255]);
-    tx(W - M - 60, 33, `DEVIS N° ${d.numero} (suite)`, "PM", 9, [255, 255, 255], "right");
+    tx(W - M - 60, 33, `${d.avenantDe ? "AVENANT" : "DEVIS"} N° ${d.numero} (suite)`, "PM", 9, [255, 255, 255], "right");
     return 78;
   }
   // colonnes
@@ -809,10 +822,10 @@ async function buildPDF(d) {
   y += 26;
   // bloc final
   const vat10 = Number(d.tva) !== 20;
-  if (y + 110 > BOTTOM) { doc.addPage(); y = header2(); }
+  if (y + (t.remise ? 150 : 110) > BOTTOM) { doc.addPage(); y = header2(); }
   const bw = 210, bx = W - M - bw;
   let yy = y;
-  for (const [k, v] of [["Total HT", eur(t.ht)], [`TVA ${String(d.tva).replace(".", ",")} %`, eur(t.tva)]]) {
+  for (const [k, v] of (t.remise ? [["Total HT avant remise", eur(t.brut)], ["Remise" + (d.remise.type === "eur" ? "" : " " + String(d.remise.val).replace(".", ",") + " %"), "− " + eur(t.remise)]] : []).concat([["Total HT", eur(t.ht)], [`TVA ${String(d.tva).replace(".", ",")} %`, eur(t.tva)]])) {
     tx(bx + 12, yy + 14, k, "P", 9, GREY); tx(W - M - 12, yy + 14, v, "PM", 9, INK, "right"); yy += 20; stroke(LINE); doc.line(bx, yy - 1, W - M, yy - 1);
   }
   fill(ROI); doc.roundedRect(bx, yy + 2, bw, 32, 5, 5, "F");
@@ -840,7 +853,12 @@ async function buildPDF(d) {
   if (y + sh > BOTTOM) { doc.addPage(); y = header2(); }
   [["BON POUR ACCORD — LE CLIENT", "Date, mention manuscrite « Bon pour accord » et signature"], ["L'ENTREPRISE", "Cachet et signature"]].forEach(([a, b], i) => {
     const x = M + i * (sw + 14); stroke([174, 184, 218]); doc.setLineDashPattern([3, 2], 0); doc.roundedRect(x, y, sw, sh, 6, 6, "S"); doc.setLineDashPattern([], 0);
-    tx(x + 12, y + 16, a, "PB", 7.5, ROI); tx(x + 12, y + 28, b, "PL", 7.2, GREY);
+    tx(x + 12, y + 16, a, "PB", 7.5, ROI);
+    if (i === 0 && d.signature && d.signature.img) { const sg = d.signature, mw = sw - 24, mh = sh - 42, k = Math.min(mw / sg.w, mh / sg.h), iw = sg.w * k, ih = sg.h * k;
+      const cap = wrap(`Bon pour accord — signé le ${dFR(sg.date)}${sg.nom ? " par " + sg.nom : ""} (signature recueillie sur écran)`, mw, "PL", 6.6).slice(0, 2); cap.forEach((ln, j) => tx(x + 12, y + 27 + j * 8, ln, "PL", 6.6, GREY));
+      const top = y + 24 + cap.length * 8, ah = y + sh - 6 - top, k2 = Math.min(mw / sg.w, ah / sg.h), w2 = sg.w * k2, h2 = sg.h * k2;
+      try { doc.addImage(sg.img, "PNG", x + 12 + (mw - w2) / 2, top + (ah - h2) / 2, w2, h2); } catch (e) { console.error(e); } }
+    else tx(x + 12, y + 28, b, "PL", 7.2, GREY);
   });
   // pieds de page
   const total = doc.getNumberOfPages();
@@ -887,7 +905,7 @@ function embedViaCanvas(out, blob) {
     }; im.onerror = () => res(null); im.src = URL.createObjectURL(blob);
   });
 }
-function pdfName(d) { const e = etatOf(d); return `Devis_${d.numero}_${(d.client.nom || "client").replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_|_$/g, "")}${e ? "_" + ETAT_FICHIER[e] : ""}${isLate(d) ? "_EN-RETARD" : ""}.pdf`; }
+function pdfName(d) { const e = etatOf(d); return `${d.avenantDe ? "Avenant" : "Devis"}_${d.numero}_${(d.client.nom || "client").replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_|_$/g, "")}${e ? "_" + ETAT_FICHIER[e] : ""}${isLate(d) ? "_EN-RETARD" : ""}.pdf`; }
 async function savePDF(mail) {
   const d = S.draft;
   const btn = $(mail ? "[data-a='pdf-mail']" : "[data-a='pdf-dl']"); if (btn) { btn.disabled = true; btn.textContent = "Création du PDF…"; }
@@ -988,6 +1006,7 @@ document.addEventListener("click", async e => {
   const a = el.dataset.a, si = Number(el.dataset.si), li = Number(el.dataset.li), d = S.draft;
   if (a === "modal-bg") { if (e.target === el) closeModal(); return; }
   if (el.tagName === "INPUT" && el.type === "file") return;
+  if (window.extrasAction && await extrasAction(a, el)) return;
   switch (a) {
     case "tab": setView(el.dataset.v); break;
     case "dash-per": case "dash-fe": case "dash-scroll": dashAction(a, el); break;
@@ -1005,7 +1024,7 @@ document.addEventListener("click", async e => {
     case "q-apply": applyAnswers(); break;
     case "q-skip": d.qAsked = [...new Set([...(d.qAsked || []), ...(d.questions || []).map(q => q.key)])]; d.questions = []; persistDraft(); render(); break;
     case "fe": S.fe = el.dataset.e || ""; render(); break;
-    case "etat": d.etat = el.dataset.e; await persistDraft(true); render(); toast("Statut : " + ETATS.find(x => x[0] === d.etat)[1]); break;
+    case "etat": setEtat(d, el.dataset.e); await persistDraft(true); render(); toast("Statut : " + ETATS.find(x => x[0] === d.etat)[1]); break;
     case "new": { const cur = lsGet("gph_current", null); openDraft(cur && cur.statut === "brouillon" && !S.devis.find(x => x.id === cur.id) && (cur.dictee || cur.sections?.length) ? cur : newDraft(), 1); break; }
     case "open": { closeModal(); const x = S.devis.find(v => v.id === el.dataset.id); if (x) openDraft(x, x.statut === "finalise" ? 3 : 2); break; }
     case "leave": persistDraft(true); S.draft = null; S.mailOpen = false; lsSet("gph_current", null); setView("list"); break;
@@ -1041,7 +1060,7 @@ document.addEventListener("click", async e => {
     case "pdf-mail": savePDF(true); break;
     case "copy-mail": { const t = totaux(d); const body = `Bonjour,\n\nVeuillez trouver ci-joint notre devis N° ${d.numero} pour ${d.objet || "les travaux"}, d'un montant de ${eur(t.ttc)} TTC.\n\nNous restons à votre disposition pour toute question.\n\nCordialement,\nPhilippe GALLOIS\n${S.cfg.societe} · ${S.cfg.tel}`;
       try { await navigator.clipboard.writeText(body); toast("Texte copié"); } catch (x) { toast("Copie impossible"); } break; }
-    case "dup": { const c = JSON.parse(JSON.stringify(d)); Object.assign(c, { id: uid(), numero: null, exercice: null, statut: "brouillon", etat: null, importe: null, date: todayISO(), createdAt: Date.now(), finalisedAt: null }); c.sections.forEach(s => s.lignes.forEach(l => l.id = uid())); openDraft(c, 2); persistDraft(true); toast("Copie créée : nouveau numéro à la génération"); break; }
+    case "dup": { const c = JSON.parse(JSON.stringify(d)); Object.assign(c, { id: uid(), numero: null, exercice: null, statut: "brouillon", etat: null, importe: null, date: todayISO(), createdAt: Date.now(), finalisedAt: null, signature: null, etatDates: null, dateEnvoi: null, avenantDe: null, avenantNum: null, parentNumero: null }); c.sections.forEach(s => s.lignes.forEach(l => l.id = uid())); openDraft(c, 2); persistDraft(true); toast("Copie créée : nouveau numéro à la génération"); break; }
     case "draft-del": if (!el.dataset.ok) { el.dataset.ok = 1; el.textContent = d.statut === "finalise" ? "Confirmer : supprimer le devis " + d.numero + " ?" : "Confirmer la suppression ?"; return; }
       S.devis = S.devis.filter(x => x.id !== d.id); await del("devis/" + d.id); S.draft = null; lsSet("gph_current", null); setView("list"); toast("Supprimé"); break;
     case "lib-new": libModal(null); break;
@@ -1077,7 +1096,7 @@ document.addEventListener("input", e => {
       el.classList.toggle("need", num(el.value) === null);
       card.classList.toggle("warn", num(l.pu) === null || num(l.quantite) === null);
       const t = totaux(d), box = $(".totals");
-      if (box) box.innerHTML = `<div class="r"><span>Total HT</span><span>${eur(t.ht)}</span></div><div class="r"><span>TVA ${String(d.tva).replace(".", ",")} %</span><span>${eur(t.tva)}</span></div><div class="r big"><span>Total TTC</span><span>${eur(t.ttc)}</span></div>${t.incomplet ? `<div class="r" style="color:#FFE0A3">${t.incomplet} ligne(s) sans prix ou quantité</div>` : ""}`;
+      if (box) box.innerHTML = `${remRows(t, d)}<div class="r"><span>Total HT</span><span>${eur(t.ht)}</span></div><div class="r"><span>TVA ${String(d.tva).replace(".", ",")} %</span><span>${eur(t.tva)}</span></div><div class="r big"><span>Total TTC</span><span>${eur(t.ttc)}</span></div>${t.incomplet ? `<div class="r" style="color:#FFE0A3">${t.incomplet} ligne(s) sans prix ou quantité</div>` : ""}`;
     }
     persistDraft();
   }

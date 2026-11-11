@@ -141,7 +141,7 @@ label.fc{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:8px;f
 .d-pipe .r{display:grid;grid-template-columns:118px 1fr 22px 52px;align-items:center;gap:8px;padding:6px 0;font-size:12.5px;cursor:pointer}
 .d-pipe .t,.d-top5 .t{height:9px;border-radius:99px;background:#EEF1FA;overflow:hidden}.d-pipe i,.d-top5 i{display:block;height:100%;width:0;border-radius:99px;transition:width 1s cubic-bezier(.2,.8,.2,1)}
 .d-pipe b{text-align:right}.d-pipe em{font-style:normal;color:var(--grey);font-size:11.5px;text-align:right}
-.c0{background:#B8C0D9}.c1{background:#7C9BFF}.c2{background:#4F7BFF}.c3{background:#2B50D0}.c4{background:#FFB020}.c5{background:#FF8A4C}.c6{background:#22C3A6}.c7{background:#12855A}
+.c0{background:#B8C0D9}.c1{background:#7C9BFF}.c2{background:#4F7BFF}.c3{background:#2B50D0}.c4{background:#FFB020}.c5{background:#FF8A4C}.c6{background:#22C3A6}.c7{background:#12855A}.c8{background:#E5484D}
 .d-al{display:flex;flex-direction:column;gap:8px}.d-al .a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:14px;cursor:pointer;transition:transform .15s}.d-al .a:hover{transform:translateX(3px)}
 .d-al i{font-style:normal;width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-weight:700;flex:none;color:#fff}.d-al div{flex:1;min-width:0}.d-al b{display:block;font-size:14px}.d-al small{color:var(--grey);font-size:12px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.d-al em{font-style:normal;font-size:20px;color:#A7AEC6}
 .a.r{background:#FFF0F0}.a.r i{background:#E5484D}.a.g{background:#EAFBF3}.a.g i{background:#12A36B}.a.b{background:#EEF2FF}.a.b i{background:#2B50D0}.a.n{background:#F4F5FA}.a.n i{background:#8A90A6}
@@ -164,3 +164,10 @@ label.fc{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:8px;f
 @media(min-width:760px){.d-kpis{grid-template-columns:repeat(4,1fr)}.d-grid{grid-template-columns:1fr 1fr}.d-card.wide{grid-column:1/-1}.d-hero{padding:28px 30px}.d-ring{width:140px}}
 @media(max-width:420px){.d-ring{width:96px}.d-pipe .r{grid-template-columns:104px 1fr 20px 46px}}
 @media(prefers-reduced-motion:reduce){.dash *,.d-hero *{animation:none!important;transition:none!important}}
+
+/* ---------- Signature, revue des prix, lecture fournisseur ---------- */
+.sigwrap{position:relative;margin-top:12px;border:2px dashed #AEB8DA;border-radius:14px;background:#FAFBFF;height:200px;touch-action:none}.sigwrap canvas{width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+.sigwrap span{position:absolute;inset:0;display:grid;place-items:center;color:#AEB8DA;font-size:15px;pointer-events:none}.sigwrap.on span{display:none}
+.signed{display:flex;gap:14px;align-items:center}.signed img{max-width:150px;max-height:80px;border:1px solid var(--line);border-radius:10px;padding:6px;background:#fff}
+.it.pv{gap:8px;align-items:center}.it.pv input{width:92px;flex:none;text-align:right;padding:8px}.it.pv .btn{flex:none}
+.lf .it{gap:10px;cursor:pointer}.lf input{width:20px;height:20px;flex:none}

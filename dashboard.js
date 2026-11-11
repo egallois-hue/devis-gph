@@ -29,7 +29,7 @@
     for (const d of signes) for (const s of d.sections || []) for (const l of s.lignes || []) { const t = lineTotal(l); if (!t) continue; const m = l.type === "fourniture" ? "Fournitures" : (bib.get(l.biblio_id) || "Divers"); metiers[m] = (metiers[m] || 0) + t; }
     const clients = {}; for (const d of signes) { const n = d.client?.nom || "?"; clients[n] = (clients[n] || 0) + (T(d).ht || 0); }
     const reclam = fin.map(d => ({ d, r: aReclamer(d) })).filter(x => x.r && x.r[1] > 0).sort((a, b) => b.r[1] - a.r[1]);
-    const relance = fin.filter(d => etatOf(d) === "envoye" && jours(d.dateEnvoi || d.date || today, today) >= 10).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const relance = fin.filter(d => etatOf(d) === "envoye" && jours((d.etatDates && d.etatDates.envoye) || d.dateEnvoi || d.date || today, today) >= 10).sort((a, b) => ((a.etatDates && a.etatDates.envoye) || a.date || "").localeCompare((b.etatDates && b.etatDates.envoye) || b.date || ""));
     const chantiers = fin.filter(d => ACTIFS.includes(etatOf(d)) && d.debut && d.finPrevue).sort((a, b) => a.debut.localeCompare(b.debut));
     return { today, per, F, fin, signes, envoyes, caHT, caTTC, enc, reste: r2(caTTC - enc), attente, attenteHT: sum(attente, d => T(d).ht), taux: envoyes.length ? signes.length / envoyes.length : null,
       panier: signes.length ? caHT / signes.length : 0, mois, metiers: Object.entries(metiers).sort((a, b) => b[1] - a[1]), clients: Object.entries(clients).sort((a, b) => b[1] - a[1]).slice(0, 5),
