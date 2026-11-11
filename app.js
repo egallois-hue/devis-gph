@@ -49,7 +49,7 @@ const S = {
   cfg: Object.assign({}, DEFAULT_CFG, lsGet("gph_cfg", {})),
   appris: lsGet("gph_appris", {}),
   devis: lsGet("gph_devis", []), biblio: lsGet("gph_biblio", []), clients: lsGet("gph_clients", []),
-  view: "list", draft: null, step: 1, pjCache: {}, ready: false
+  view: "dash", draft: null, step: 1, pjCache: {}, ready: false
 };
 
 /* ===================== Numérotation (exercice 1er oct → 30 sept) ===================== */
@@ -285,9 +285,10 @@ function render() {
   const m = $("#main"), b = $("#barwrap");
   if (needLogin) { $("#tabs").style.display = "none"; m.innerHTML = viewLogin(); b.innerHTML = ""; return; }
   $("#tabs").style.display = inEditor ? "none" : "flex";
-  $("#tabs").innerHTML = [["list", "Devis"], ["clients", "Clients"], ["biblio", "Prestations"], ["reglages", "Réglages"]]
+  $("#tabs").innerHTML = [["dash", "Accueil"], ["list", "Devis"], ["clients", "Clients"], ["biblio", "Prestations"], ["reglages", "Réglages"]]
     .map(([k, l]) => `<button class="${S.view === k || (k === "clients" && S.view === "client") ? "on" : ""}" data-a="tab" data-v="${k}">${l}</button>`).join("");
-  if (S.view === "list") { m.innerHTML = viewList(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="new">＋ Nouveau devis</button></div>`; }
+  if (S.view === "dash") { m.innerHTML = viewDash(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="new">＋ Nouveau devis</button></div>`; dashAfter(); }
+  else if (S.view === "list") { m.innerHTML = viewList(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="new">＋ Nouveau devis</button></div>`; }
   else if (S.view === "clients") { m.innerHTML = viewClients(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="cli-new">＋ Nouveau client</button></div>`; }
   else if (S.view === "client") { m.innerHTML = viewClient(); b.innerHTML = `<div class="bar"><button class="btn sec" data-a="tab" data-v="clients">Retour</button><button class="btn" data-a="cli-save">Enregistrer</button></div>`; }
   else if (S.view === "biblio") { m.innerHTML = viewBiblio(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="lib-new">＋ Ajouter une prestation</button></div>`; }
@@ -989,6 +990,7 @@ document.addEventListener("click", async e => {
   if (el.tagName === "INPUT" && el.type === "file") return;
   switch (a) {
     case "tab": setView(el.dataset.v); break;
+    case "dash-per": case "dash-fe": case "dash-scroll": dashAction(a, el); break;
     case "lfc": { const l = d.sections[si].lignes[li]; l.fournitureComprise = el.checked; persistDraft(); render(); break; }
     case "ft": S.ft = el.dataset.e || ""; render(); break;
     case "cli-new": openClient(null); break;
