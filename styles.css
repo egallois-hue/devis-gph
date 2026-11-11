@@ -176,3 +176,4 @@ label.fc{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:8px;f
 .it .ck{width:24px;height:24px;border-radius:8px;border:2px solid #AEB8DA;flex:none;display:grid;place-items:center;background:#fff}.it .ck.on{background:var(--roi);border-color:var(--roi)}.it .ck.on::after{content:"✓";color:#fff;font-size:15px;font-weight:700}
 .it.sel{background:var(--roi-l)}.selhead{display:flex;justify-content:space-between;margin:-2px 0 8px}
 .selbar{flex-wrap:wrap;gap:8px}.selbar .selinfo{flex:1 1 100%;font-size:13px;color:var(--grey);text-align:center}.selbar .btn{flex:1}.selbar .btn[disabled]{opacity:.45}
+.a.o{background:#FFF4E2}.a.o i{background:#E8890C}

@@ -15,11 +15,11 @@
     const today = todayISO(), per = S.dashPer || "ex", ex = exerciceKey(today);
     const lim = per === "12" ? new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 10) : null;
     const inPer = d => per === "tout" ? true : per === "ex" ? (d.exercice || exerciceKey(d.date || today)) === ex : (d.date || today) >= lim;
-    const fin = S.devis.filter(d => d.statut === "finalise"), F = fin.filter(inPer);
-    const signes = F.filter(d => SIGNES.includes(etatOf(d))), envoyes = F.filter(d => etatOf(d) !== "attente");
+    const fin = S.devis.filter(estEmis), F = fin.filter(inPer), classes = F.filter(d => !aClasser(d)), nonClasses = fin.filter(aClasser);
+    const signes = F.filter(d => SIGNES.includes(etatOf(d))), envoyes = classes.filter(d => etatOf(d) !== "attente");
     const sum = (a, f) => a.reduce((x, d) => x + (f(d) || 0), 0);
     const caHT = sum(signes, d => T(d).ht), caTTC = sum(signes, d => T(d).ttc), enc = sum(signes, encaisse);
-    const attente = F.filter(d => ["attente", "envoye"].includes(etatOf(d)));
+    const attente = classes.filter(d => ["attente", "envoye"].includes(etatOf(d)));
     // 12 derniers mois
     const mois = []; const now = new Date(today);
     for (let i = 11; i >= 0; i--) { const x = new Date(now.getFullYear(), now.getMonth() - i, 1); mois.push({ k: x.getFullYear() + "-" + String(x.getMonth() + 1).padStart(2, "0"), l: MOIS[x.getMonth()], dev: 0, sig: 0, n: 0 }); }
@@ -33,8 +33,8 @@
     const chantiers = fin.filter(d => ACTIFS.includes(etatOf(d)) && d.debut && d.finPrevue).sort((a, b) => a.debut.localeCompare(b.debut));
     return { today, per, F, fin, signes, envoyes, caHT, caTTC, enc, reste: r2(caTTC - enc), attente, attenteHT: sum(attente, d => T(d).ht), taux: envoyes.length ? signes.length / envoyes.length : null,
       panier: signes.length ? caHT / signes.length : 0, mois, metiers: Object.entries(metiers).sort((a, b) => b[1] - a[1]), clients: Object.entries(clients).sort((a, b) => b[1] - a[1]).slice(0, 5),
-      reclam, reclamTotal: sum(reclam, x => x.r[1]), relance, chantiers, retards: fin.filter(isLate), brouillons: S.devis.filter(d => d.statut !== "finalise").length,
-      parEtat: ETATS.map(e => ({ e, n: F.filter(d => etatOf(d) === e[0]).length, ht: sum(F.filter(d => etatOf(d) === e[0]), d => T(d).ht) })) };
+      reclam, reclamTotal: sum(reclam, x => x.r[1]), relance, chantiers, retards: fin.filter(isLate), brouillons: S.devis.filter(d => !estEmis(d)).length, nonClasses, nonClassesHT: sum(nonClasses, d => T(d).ht),
+      parEtat: ETATS.map(e => ({ e, n: classes.filter(d => etatOf(d) === e[0]).length, ht: sum(classes.filter(d => etatOf(d) === e[0]), d => T(d).ht) })) };
   }
 
   const COL = ["#4F7BFF", "#22C3A6", "#FFB020", "#FF6B8A", "#9B7BFF", "#3ED0F5", "#FF8A4C", "#7CD957", "#C9D2F2"];
@@ -80,6 +80,7 @@
     if (!s.fin.length) return (typeof statusBanner === "function" ? statusBanner() : "") + `<div class="d-hero"><div class="d-glow"></div><div class="d-hi">${h < 18 ? "Bonjour" : "Bonsoir"}${nom ? " " + esc(nom) : ""}</div><div class="d-big" style="font-size:26px;margin-top:10px">Votre tableau de bord se remplira tout seul</div><div class="d-sub">Dès le premier devis finalisé : chiffre d'affaires signé, acomptes à encaisser, planning des chantiers, relances.</div><button class="btn d-cta" data-a="new">＋ Créer le premier devis</button></div>`;
     const seg = [["ex", "Exercice en cours"], ["12", "12 mois"], ["tout", "Tout"]].map(x => `<button class="${per === x[0] ? "on" : ""}" data-a="dash-per" data-p="${x[0]}">${x[1]}</button>`).join("");
     const alertes = [];
+    if (s.nonClasses.length) alertes.push(["o", "⇩", `${s.nonClasses.length} devis importé${s.nonClasses.length > 1 ? "s" : ""} à classer · ${k0(s.nonClassesHT)} € HT`, "Signés, payés, refusés ? Donnez-leur un statut pour qu'ils comptent en « signé » et « encaissé »", `data-a="dash-fe" data-e="importe"`]);
     if (s.retards.length) alertes.push(["r", "⚠", `${s.retards.length} chantier${s.retards.length > 1 ? "s" : ""} en retard`, s.retards.map(d => d.client?.nom).slice(0, 3).join(", "), `data-a="dash-fe" data-e="retard"`]);
     if (s.reclam.length) alertes.push(["g", "€", `${k0(s.reclamTotal)} € à réclamer maintenant`, `${s.reclam.length} échéance${s.reclam.length > 1 ? "s" : ""} arrivée${s.reclam.length > 1 ? "s" : ""} (acompte ou solde)`, `data-a="dash-scroll" data-t="d-cash"`]);
     if (s.relance.length) alertes.push(["b", "↻", `${s.relance.length} devis à relancer`, "Envoyés depuis plus de 10 jours, sans réponse", `data-a="dash-fe" data-e="envoye"`]);
@@ -108,7 +109,7 @@
       <div class="d-card"><h3>Répartition par corps d'état</h3>${s.metiers.length ? donut(s.metiers) : `<div class="d-empty">Disponible dès qu'un devis est signé.</div>`}</div>
       <div class="d-card"><h3>Meilleurs clients</h3>${s.clients.length ? `<div class="d-top5">${s.clients.map((c, i) => `<div><span class="rk">${i + 1}</span><div class="n">${esc(c[0])}<div class="t"><i data-w="${Math.round(c[1] / s.clients[0][1] * 100)}"></i></div></div><b>${k0(c[1])} €</b></div>`).join("")}</div>` : `<div class="d-empty">Disponible dès qu'un devis est signé.</div>`}</div>
     </div>
-    <div class="d-foot">Chiffres calculés à partir de vos devis et de leur statut. « Signé » = accepté et au-delà. « Encaissé » suit les statuts acompte 1, acompte 2 et payé.</div></div>`;
+    <div class="d-foot">Chiffres calculés à partir de vos devis (créés ici ou importés) et de leur statut. Un devis importé sans statut compte en « devisé » seulement. « Signé » = accepté et au-delà. « Encaissé » suit les statuts acompte 1, acompte 2 et payé.</div></div>`;
   };
 
   window.dashAfter = function () {       // animations : compteurs, barres, jauges
@@ -127,7 +128,7 @@
   };
   window.dashAction = function (a, el) {
     if (a === "dash-per") { S.dashPer = el.dataset.p; render(); return true; }
-    if (a === "dash-fe") { S.fe = el.dataset.e; setView("list"); return true; }
+    if (a === "dash-fe") { S.fe = el.dataset.e; S.sel = el.dataset.e === "importe" ? new Set() : null; setView("list"); return true; }
     if (a === "dash-scroll") { const t = document.getElementById(el.dataset.t); if (t) t.scrollIntoView({ behavior: "smooth", block: "center" }); return true; }
     return false;
   };

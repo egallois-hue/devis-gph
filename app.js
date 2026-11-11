@@ -59,12 +59,15 @@ function exerciceLabel(k) { return `${k}-${Number(k) + 1}`; }
 const ETATS = [["attente", "En attente", "grey"], ["envoye", "Envoyé", "b"], ["accepte", "Accepté", "g"], ["acompte1", "Acompte 1 reçu", "g"],
   ["en_cours", "Chantier en cours", "w"], ["acompte2", "Acompte 2 reçu", "w"], ["fini", "Chantier fini", "b"], ["paye", "Payé", "ok"], ["refuse", "Refusé / sans suite", "r"]];
 const ETAT_FICHIER = { attente: "EN-ATTENTE", envoye: "ENVOYE", accepte: "ACCEPTE", acompte1: "ACOMPTE-1-RECU", en_cours: "CHANTIER-EN-COURS", acompte2: "ACOMPTE-2-RECU", fini: "CHANTIER-FINI", paye: "PAYE", refuse: "REFUSE" };
-function etatOf(d) { if (d.statut !== "finalise") return null; const e = d.etat === "fini_paye" ? "paye" : (d.etat || "attente"); return ETAT_FICHIER[e] ? e : "attente"; }
+/* Devis « émis » : généré ici, ou importé avec son numéro (ancien devis). Un importé reste « à classer » tant qu'aucun statut ne lui a été donné. */
+const estEmis = d => d.statut === "finalise" || !!(d.importe && d.numero);
+const aClasser = d => d.statut !== "finalise" && !!(d.importe && d.numero) && !d.etatDates;
+function etatOf(d) { if (!estEmis(d)) return null; const e = d.etat === "fini_paye" ? "paye" : (d.etat || "attente"); return ETAT_FICHIER[e] ? e : "attente"; }
 /* « En retard » : automatique quand la fin annoncée est passée et que le chantier n'est pas fini */
 function isLate(d) { const e = etatOf(d); return !!(e && d.finPrevue && ["accepte", "acompte1", "en_cours", "acompte2"].includes(e) && todayISO() > d.finPrevue); }
 function addWorkDays(iso, n) { const t = new Date(iso + "T12:00:00"); let k = Math.max(0, Math.ceil(n) - 1); while (t.getDay() === 0 || t.getDay() === 6) t.setDate(t.getDate() + 1);
   while (k > 0) { t.setDate(t.getDate() + 1); if (t.getDay() !== 0 && t.getDay() !== 6) k--; } return t.toISOString().slice(0, 10); }
-function etatPill(d) { const e = etatOf(d); if (!e) return `<span class="pill grey">${d.importe ? "Importé · à vérifier" : "Brouillon"}</span>`; const x = ETATS.find(z => z[0] === e) || ETATS[0];
+function etatPill(d) { const e = etatOf(d); if (!e) return `<span class="pill grey">${d.importe ? "Importé · à vérifier" : "Brouillon"}</span>`; if (aClasser(d)) return `<span class="pill w">Importé · à classer</span>`; const x = ETATS.find(z => z[0] === e) || ETATS[0];
   return `<span class="pill ${x[2]}">${x[1]}</span>${isLate(d) ? `<br><span class="pill r" style="margin-top:4px">En retard</span>` : ""}`; }
 function nextNumero(iso) {
   const k = exerciceKey(iso);
@@ -312,13 +315,13 @@ function statusBanner() {
 function viewList() {
   const q = norm(S.q || "");
   const rows = S.devis.filter(d => !q || norm([d.numero, d.client?.nom, d.client?.cpVille, d.objet].join(" ")).includes(q))
-    .filter(d => !S.fe || (S.fe === "brouillon" ? d.statut !== "finalise" : S.fe === "retard" ? isLate(d) : etatOf(d) === S.fe))
+    .filter(d => !S.fe || (S.fe === "brouillon" ? !estEmis(d) : S.fe === "retard" ? isLate(d) : S.fe === "importe" ? aClasser(d) : (etatOf(d) === S.fe && !aClasser(d))))
     .sort((a, b) => String(b.numero || "~").localeCompare(String(a.numero || "~")) || (b.updatedAt || 0) - (a.updatedAt || 0));
-  const cnt = e => S.devis.filter(d => e === "brouillon" ? d.statut !== "finalise" : e === "retard" ? isLate(d) : etatOf(d) === e).length;
-  const chips = [["", "Tous", S.devis.length], ["retard", "⚠ En retard", cnt("retard")], ...ETATS.map(x => [x[0], x[1], cnt(x[0])]), ["brouillon", "Brouillons", cnt("brouillon")]].filter(x => x[0] === "" || x[2])
+  const cnt = e => S.devis.filter(d => e === "brouillon" ? !estEmis(d) : e === "retard" ? isLate(d) : e === "importe" ? aClasser(d) : (etatOf(d) === e && !aClasser(d))).length;
+  const chips = [["", "Tous", S.devis.length], ["retard", "⚠ En retard", cnt("retard")], ["importe", "Importés à classer", cnt("importe")], ...ETATS.map(x => [x[0], x[1], cnt(x[0])]), ["brouillon", "Brouillons", cnt("brouillon")]].filter(x => x[0] === "" || x[2])
     .map(x => `<button class="chip ${(S.fe || "") === x[0] ? "on" : ""}" data-a="fe" data-e="${x[0]}">${x[1]} <b>${x[2]}</b></button>`).join("");
   const k = exerciceKey(todayISO());
-  const fin = S.devis.filter(d => d.statut === "finalise" && d.exercice === k);
+  const fin = S.devis.filter(d => estEmis(d) && (d.exercice || exerciceKey(d.date || todayISO())) === k);
   const ca = fin.reduce((a, d) => a + (d.totaux?.ht || 0), 0);
   const nbLate = cnt("retard");
   return statusBanner() + (nbLate ? `<div class="banner w" data-a="fe" data-e="retard" style="cursor:pointer"><b>${nbLate} chantier(s) en retard</b> : la fin annoncée est passée. Touchez pour les voir.</div>` : "") + `
@@ -979,7 +982,7 @@ async function importDevis(files) {
   openModal(`<h3>Import terminé</h3><div class="list">${res.map(r => r.d
     ? `<div class="it" data-a="open" data-id="${r.d.id}"><div class="m"><div class="t">${esc(r.d.numero || "Sans numéro")} · ${esc(r.d.client.nom || "?")}</div><div class="s">${r.d.importe.notes.length ? "⚠ " + esc(r.d.importe.notes[0]) : "Totaux identiques à l'original"}</div></div><div class="a">${eur(r.d.totaux.ht)} HT</div></div>`
     : `<div class="it"><div class="m"><div class="t">${esc(r.f)}</div><div class="s" style="color:var(--warn)">Non importé : ${esc(r.err)}</div></div></div>`).join("")}</div>
-    <div class="hint" style="margin-top:10px">Les devis importés sont en brouillon : ouvrez-les, vérifiez, puis « Générer le devis ». Ils gardent leur numéro.</div>
+    <div class="hint" style="margin-top:10px">Les devis importés comptent tout de suite dans le tableau de bord (montants devisés par mois). Pour qu'ils comptent aussi en « signé » et « encaissé », donnez-leur un statut : onglet Devis → « Importés à classer » → sélectionnez-les → Statut. Ils gardent leur numéro.</div>
     <button class="btn block" style="margin-top:12px" data-a="close">OK</button>`);
 }
 
