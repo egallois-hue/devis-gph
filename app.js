@@ -275,7 +275,7 @@ async function unlock() {
 
 
 /* ===================== Rendu général ===================== */
-function setView(v) { S.view = v; window.scrollTo(0, 0); render(); }
+function setView(v) { if (v !== "list") S.sel = null; S.view = v; window.scrollTo(0, 0); render(); }
 function render() {
   if (!S.ready) return;
   const needLogin = !S.noBackend && !S.uid && !S.offlineMode;
@@ -292,6 +292,7 @@ function render() {
   $("#tabs").innerHTML = [["dash", "Accueil"], ["list", "Devis"], ["clients", "Clients"], ["biblio", "Prestations"], ["reglages", "Réglages"]]
     .map(([k, l]) => `<button class="${S.view === k || (k === "clients" && S.view === "client") ? "on" : ""}" data-a="tab" data-v="${k}">${l}</button>`).join("");
   if (S.view === "dash") { m.innerHTML = viewDash(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="new">＋ Nouveau devis</button></div>`; dashAfter(); }
+  else if (S.view === "list" && S.sel) { m.innerHTML = viewList(); b.innerHTML = selBarre(); }
   else if (S.view === "list") { m.innerHTML = viewList(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="new">＋ Nouveau devis</button></div>`; }
   else if (S.view === "clients") { m.innerHTML = viewClients(); b.innerHTML = `<div class="bar"><button class="btn block" data-a="cli-new">＋ Nouveau client</button></div>`; }
   else if (S.view === "client") { m.innerHTML = viewClient(); b.innerHTML = `<div class="bar"><button class="btn sec" data-a="tab" data-v="clients">Retour</button><button class="btn" data-a="cli-save">Enregistrer</button></div>`; }
@@ -330,8 +331,10 @@ function viewList() {
   </div>
   <input class="i" placeholder="Rechercher un client, un numéro…" value="${esc(S.q || "")}" data-in="q" style="margin-bottom:10px">
   <div class="chips">${chips}</div>
+  ${selEntete(rows)}
   <div class="card list">${rows.length ? rows.map(d => `
-    <div class="it" data-a="open" data-id="${d.id}">
+    <div class="it ${S.sel && S.sel.has(d.id) ? "sel" : ""}" data-a="${S.sel ? "sel-t" : "open"}" data-id="${d.id}">
+      ${S.sel ? `<span class="ck ${S.sel.has(d.id) ? "on" : ""}"></span>` : ""}
       <div class="m"><div class="t">${esc(d.client?.nom || "Sans client")}</div>
       <div class="s">${d.numero ? esc(d.numero) : "Brouillon"} · ${dFR(d.date)} · ${esc(d.objet || "")}</div></div>
       <div style="text-align:right"><div class="a">${eur(d.totaux?.ttc)}</div>

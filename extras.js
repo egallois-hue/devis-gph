@@ -12,6 +12,26 @@
   function majTotaux() { const d = S.draft, t = totaux(d), box = document.querySelector(".totals"); if (!box) return;
     box.innerHTML = `${remRows(t, d)}<div class="r"><span>Total HT</span><span>${eur(t.ht)}</span></div><div class="r"><span>TVA ${String(d.tva).replace(".", ",")} %</span><span>${eur(t.tva)}</span></div><div class="r big"><span>Total TTC</span><span>${eur(t.ttc)}</span></div>${t.incomplet ? `<div class="r" style="color:#FFE0A3">${t.incomplet} ligne(s) sans prix ou quantité</div>` : ""}`; }
 
+  /* ---------- Onglet Devis : sélection multiple ---------- */
+  const selList = () => S.devis.filter(d => S.sel && S.sel.has(d.id));
+  window.selEntete = function (rows) {
+    if (!S.sel) return rows.length ? `<div style="text-align:right;margin:-2px 0 8px"><button class="btn ghost sm" data-a="sel-on">Sélectionner plusieurs devis</button></div>` : "";
+    S.selVisible = rows.map(d => d.id); const tous = rows.length && rows.every(d => S.sel.has(d.id));
+    return `<div class="selhead"><button class="btn ghost sm" data-a="sel-all">${tous ? "Tout désélectionner" : `Tout sélectionner (${rows.length})`}</button><button class="btn ghost sm" data-a="sel-off">Terminer</button></div>`; };
+  window.selBarre = function () { const L = selList(), n = L.length, ttc = L.reduce((a, d) => a + ((d.totaux && d.totaux.ttc) || 0), 0), off = n ? "" : "disabled";
+    return `<div class="bar selbar"><div class="selinfo"><b>${n}</b> sélectionné${n > 1 ? "s" : ""}${n ? ` · ${eur(ttc)} TTC` : ""}</div><button class="btn sec" data-a="sel-etat" ${off}>Statut</button><button class="btn sec" data-a="sel-csv" ${off}>Exporter</button><button class="btn danger" data-a="sel-del" ${off}>Supprimer</button></div>`; };
+  async function selEtat(e) { const L = selList().filter(d => d.statut === "finalise"), br = selList().length - L.length;
+    for (const d of L) { setEtat(d, e); d.updatedAt = Date.now(); await put("devis/" + d.id, d).catch(() => {}); }
+    closeModal(); render(); toast(`${L.length} devis passé${L.length > 1 ? "s" : ""} à « ${ETATS.find(x => x[0] === e)[1]} »${br ? ` · ${br} brouillon${br > 1 ? "s" : ""} ignoré${br > 1 ? "s" : ""}` : ""}`, 3600); }
+  async function selSuppr() { const L = selList(), ids = new Set(L.map(d => d.id));
+    S.devis = S.devis.filter(d => !ids.has(d.id)); for (const id of ids) await del("devis/" + id).catch(() => {});
+    if (S.draft && ids.has(S.draft.id)) { S.draft = null; lsSet("gph_current", null); }
+    S.sel = new Set(); closeModal(); render(); toast(`${ids.size} devis supprimé${ids.size > 1 ? "s" : ""}`); }
+  function selCSV() { const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`, n2 = v => (v === null || v === undefined || !isFinite(v)) ? "" : String(r2(v)).replace(".", ",");
+    const rows = [["Numéro", "Date", "Client", "Ville", "Objet", "Statut", "Total HT", "TVA %", "Total TTC", "Début", "Fin prévue"]].concat(selList().sort((a, b) => String(a.numero || "~").localeCompare(String(b.numero || "~"))).map(d => { const t = d.totaux || totaux(d), e = etatOf(d);
+      return [d.numero || "Brouillon", d.date || "", d.client?.nom || "", d.client?.cpVille || "", d.objet || "", e ? ETATS.find(x => x[0] === e)[1] + (isLate(d) ? " (en retard)" : "") : "Brouillon", n2(t.ht), String(d.tva ?? "").replace(".", ","), n2(t.ttc), d.debut || "", d.finPrevue || ""]; }));
+    downloadBlob(new Blob(["\ufeff" + rows.map(r => r.map(q).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" }), `devis-selection-${todayISO()}.csv`); toast("Liste exportée (s'ouvre dans Excel)"); }
+
   /* ---------- Onglet Prestations : filtres et compteurs ---------- */
   const ORIG = [["", "Toutes"], ["moi", "Mes tarifs"], ["auto", "Créées par la dictée"], ["manuel", "Ajoutées à la main"], ["marche", "Prix du marché"], ["sansprix", "Prix à définir"], ["utilisees", "Déjà utilisées"]];
   const origOf = b => b.origine === "auto" ? "auto" : b.origine === "manuel" ? "manuel" : b.origine === "marché" ? "marche" : "moi";
@@ -167,6 +187,17 @@
   window.extrasAction = async function (a, el) {
     const d = S.draft;
     switch (a) {
+      case "sel-on": S.sel = new Set(); render(); return true;
+      case "sel-off": S.sel = null; render(); return true;
+      case "sel-t": S.sel.has(el.dataset.id) ? S.sel.delete(el.dataset.id) : S.sel.add(el.dataset.id); render(); return true;
+      case "sel-all": { const v = S.selVisible || [], tous = v.length && v.every(id => S.sel.has(id)); for (const id of v) tous ? S.sel.delete(id) : S.sel.add(id); render(); return true; }
+      case "sel-etat": { const L = selList(), nf = L.filter(d => d.statut === "finalise").length;
+        openModal(`<h2>Changer le statut de ${nf} devis</h2>${L.length - nf ? `<div class="hint">${L.length - nf} brouillon(s) sélectionné(s) : ils n'ont pas de statut et ne seront pas modifiés.</div>` : ""}<div class="hint" style="margin:6px 0 10px">La date du jour est enregistrée pour ce statut.</div><div class="etats">${ETATS.map(x => `<button class="btn sec sm" data-a="sel-etat-ok" data-e="${x[0]}" ${nf ? "" : "disabled"}>${x[1]}</button>`).join("")}</div><button class="btn ghost block" data-a="close" style="margin-top:12px">Annuler</button>`); return true; }
+      case "sel-etat-ok": await selEtat(el.dataset.e); return true;
+      case "sel-del": { const L = selList(), nf = L.filter(d => d.statut === "finalise").length;
+        openModal(`<h2>Supprimer ${L.length} devis ?</h2><div class="banner w">${nf ? `<b>${nf} devis généré${nf > 1 ? "s" : ""}</b> (numéroté${nf > 1 ? "s" : ""})${L.length - nf ? ` et ${L.length - nf} brouillon${L.length - nf > 1 ? "s" : ""}` : ""}` : `${L.length} brouillon${L.length > 1 ? "s" : ""}`} : ${esc(L.slice(0, 6).map(d => d.numero || d.client?.nom || "brouillon").join(", "))}${L.length > 6 ? "…" : ""}.<br>La suppression est définitive sur tous vos appareils. Une sauvegarde automatique récente permet de les retrouver (Réglages).</div><div class="row" style="margin-top:12px"><button class="btn sec" data-a="close">Annuler</button><button class="btn danger" data-a="sel-del-ok">Supprimer définitivement</button></div>`); return true; }
+      case "sel-del-ok": await selSuppr(); return true;
+      case "sel-csv": selCSV(); return true;
       case "avenant": if (d) { await persistDraft(true); creerAvenant(d); } return true;
       case "sign": if (d) ouvrirSignature(d); return true;
       case "sign-clear": if (pad) { pad.cx.clearRect(0, 0, pad.cv.width, pad.cv.height); pad.vide = true; pad.cv.parentNode.classList.remove("on"); } return true;
