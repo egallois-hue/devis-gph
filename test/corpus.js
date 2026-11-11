@@ -469,8 +469,8 @@ module.exports = [
   L: [["P011", 26, "m²"], ["P051", 26, "m²", { pu: 45, fc: true }], ["P054", 21, "ml"]] },
 
 { id: "T22", set: "test",
-  text: `chez monsieur Colas 4 rue Mirabeau Paris 16 protection des sols et des meubles peinture du séjour plafond 14 m² murs 50 m² et de la cuisine plafond 6 m² murs 22 m² compter 6 jours avec le parking`,
-  client: { nom: "M. Colas", adr: "4 rue Mirabeau", ville: "Paris" }, duree: 6,
+  text: `chez monsieur Collet 4 rue Mirabeau Paris 16 protection des sols et des meubles peinture du séjour plafond 14 m² murs 50 m² et de la cuisine plafond 6 m² murs 22 m² compter 6 jours avec le parking`,
+  client: { nom: "M. Collet", adr: "4 rue Mirabeau", ville: "Paris" }, duree: 6,
   L: [["P001|P002", 1, "forfait"], ["P022", 14, "m²"], ["P021", 50, "m²"], ["P022", 6, "m²"], ["P021", 22, "m²"], ["P008", 6, "jour"]] },
 
 { id: "T23", set: "test",
